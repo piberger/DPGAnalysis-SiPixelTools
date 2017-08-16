@@ -120,9 +120,6 @@ public:
   virtual void beginJob();
   virtual void analyze(const edm::Event&, const edm::EventSetup&);
   virtual void endJob(); 
-  int moduleIndex(int ladder,int module); 
-  bool validIndex(int index, bool print); 
-  int rocId(int pixy,int pixx);  // 0-15, column, row
 
 private:
   // ----------member data ---------------------------
@@ -132,11 +129,10 @@ private:
   edm::EDGetTokenT< edm::DetSetVector<PixelDigiSimLink> > tPixelDigiSimLink;
 #endif
   float count0, count1, count2, count3;
-  int select1, select2;
 
 #ifdef HISTOS
 
-  //TFile* hFile;
+  TFile* hFile;
   TH1F *hdetunit;
   TH1F *heloss1,*heloss2, *heloss3, *heloss4;
   TH1F *hneloss1,*hneloss2, *hneloss3, *hneloss4;
@@ -154,14 +150,15 @@ private:
   TH1F *hdetsPerLayF1,*hdetsPerLayF2,*hdetsPerLayF3;
   TH1F *hdetr, *hdetz, *hdetrF, *hdetzF;
   TH1F *hcolsB,  *hrowsB,  *hcolsF,  *hrowsF;
-  TH1F *hcols1Many,*hcols1ManyCounts; // , *hrows1big, *heloss1bigx, *heloss1bigy,*hcols11;
+  TH1F *hcols1big, *hrows1big, *heloss1bigx, *heloss1bigy;
   TH1F *hsimlinks, *hfract;
   TH1F *hblade1, *hblade2, *hblade3;
-  
 
+  //TH2F *htest, *htest2;
   TH2F *hpdetMap4,*hpdetMap3,*hpdetMap2,*hpdetMap1; 
-  TH2F *hdetMap4,*hdetMap3,*hdetMap2,*hdetMap1; 
-  TH2F *hpixMap1, *hpixMap2, *hpixMap3,*hpixMap4;
+  TH2F *hdetMap4,*hdetMap3,*hdetMap2,*hdetMap1, 
+    *hpixMap1, *hpixMap2, *hpixMap3,*hpixMap4;
+
 
   TH2F *hpdetMaps4,*hpdetMaps3,*hpdetMaps2,*hpdetMaps1; 
 
@@ -169,33 +166,37 @@ private:
   TH2F *hxy, *hphiz1, *hphiz2, *hphiz3, *hphiz4; // bpix 
   TH2F *hzr, *hxy11, *hxy12, *hxy21, *hxy22, *hxy31, *hxy32;  // fpix 
 
-  // single mosules 
-  TH2F *hpixDetMap10, *hpixDetMap20, *hpixDetMap30, *hpixDetMap40;
-  TH2F *hpixDetMap11, *hpixDetMap12, *hpixDetMap13, *hpixDetMap14, *hpixDetMap15;
-  TH2F *hpixDetMap16, *hpixDetMap17, *hpixDetMap18, *hpixDetMap19;
-  TH2F *hpixDetMap21, *hpixDetMap22, *hpixDetMap23, *hpixDetMap24, *hpixDetMap25;
-  TH2F *hpixDetMap26, *hpixDetMap27, *hpixDetMap28, *hpixDetMap29;
-  TH2F *hpixDetMap31, *hpixDetMap32, *hpixDetMap33, *hpixDetMap34, *hpixDetMap35;
-  TH2F *hpixDetMap36, *hpixDetMap37, *hpixDetMap38, *hpixDetMap39;
-  TH2F *hpixDetMap41, *hpixDetMap42, *hpixDetMap43, *hpixDetMap44, *hpixDetMap45;
-  TH2F *hpixDetMap46, *hpixDetMap47, *hpixDetMap48, *hpixDetMap49;
-
   TH1F *hevent, *hlumi, *horbit, *hbx0, *hlumi0, *hlumi1,*hbx1,*hbx2,*hbx3,*hbx4,*hbx5,*hbx6;
   TH1F *hdets, *hdigis, *hdigis0, *hdigis1, *hdigis2,*hdigis3,*hdigis4,*hdigis5; 
 
-  TH1F *hDcolsCount;
   TProfile *hadc1ls,*hadc2ls,*hadc3ls,*hadc4ls,*hadc0ls; 
   TProfile *hadc1bx,*hadc2bx,*hadc3bx,*hadc4bx,*hadc0bx; 
 
-
 #endif
 
+  // test!
+  char digiTestModuleName[37];
+  int digiTestEvent;
+  int digiTestNdigis;
+  int digiTestDigiRow[66000];
+  int digiTestLS;
+  int digiTestDigiCol[66000];
+  int digiTestDigiAdc[66000];
+  TTree* digiTestTree;
   edm::InputTag src_;  
   bool phase1_;
-  int countFullDcols;
-  int oneModule[416][160];
-  int dCols[120][16][26];
 
+  // custom clustering
+  char clustersModuleName[37];
+  int clustersSizeBranch;
+  int clustersNcomplete;
+  int clustersNbroken1;
+  int clustersNbroken2;
+  std::map< std::pair<std::string, int>, int> clustersComplete;
+  std::map< std::pair<std::string, int>, int> clustersSplitByOne;
+  std::map< std::pair<std::string, int>, int> clustersSplitByTwo;
+  TTree* clusterTree;
+  int restrictToLumisection;
 };
 
 //
@@ -217,10 +218,9 @@ PixDigisTest::PixDigisTest(const edm::ParameterSet& iConfig) {
 #ifdef USE_SIM_LINKS
   tPixelDigiSimLink = consumes < edm::DetSetVector<PixelDigiSimLink> > ( src_);
 #endif 
-  phase1_ = iConfig.getUntrackedParameter<bool>( "phase1",false);
-  select1 = iConfig.getUntrackedParameter<int>("Select1",0);
-  select2 = iConfig.getUntrackedParameter<int>("Select2",0);
-
+  phase1_ =  iConfig.getUntrackedParameter<bool>( "phase1",false);
+  restrictToLumisection = iConfig.getUntrackedParameter<int>("lumisection", -1);
+  
   cout<<" Construct PixDigisTest "<<endl;
 }
 
@@ -235,41 +235,6 @@ PixDigisTest::~PixDigisTest() {
 
 //
 // member functions
-// decode a simplified ROC address
-int PixDigisTest::rocId(int col, int row) {
-  int rocRow = row/80;
-  int rocCol = col/52;
-  int rocId = rocCol + rocRow*8;
-  return rocId;
- }
-//      int roc = rocId(int(pixy),int(pixx));  // 0-15, column, row
-
-
-// this is just to turn the L1 ladder&module into a 1D index 
-int PixDigisTest::moduleIndex(int ladder, int module) {
-  int index=-1;
-  if(module>0) index = module-1;
-  else         index = abs(module)-1+4;
-  if(ladder>0) index = index + (ladder-1)*10;
-  else         index = index + (abs(ladder)-1)*10 + 60;
-  return index;
-}
-//
-bool PixDigisTest::validIndex(int index, bool print = false) {
-  bool valid=true;
-  int module = index%10;
-  int ladder = index/10;
-  if(module<0 || module>7)  valid=false;
-  if(ladder<0 || ladder>11) valid=false;
-  if(print) {
-    module += 1;
-    ladder += 1;
-    if(module>4) module = -(module - 4);
-    if(ladder>6) ladder = -(ladder - 6);
-    cout<<index<<" module "<<(module)<<" ladder "<<(ladder)<<endl;
-  }
-  return valid;
-}
 //
 // ------------ method called at the begining   ------------
 void PixDigisTest::beginJob() {
@@ -277,17 +242,6 @@ void PixDigisTest::beginJob() {
    using namespace edm;
    cout << "Initialize PixDigisTest " <<endl;
    count0=count1=count2=count3=0;
-   countFullDcols=0;
-
-   for(int col=0;col<416;++col)
-     for(int row=0;row<160;++row)
-       oneModule[col][row]=0;
-
-   for(int ind=0;ind<120;++ind)
-     for(int roc=0;roc<16;++roc)
-       for(int dcol=0;dcol<26;++dcol)
-	 dCols[ind][roc][dcol]=0;
-
 
 #ifdef HISTOS
   edm::Service<TFileService> fs;
@@ -297,8 +251,18 @@ void PixDigisTest::beginJob() {
   //TFileDirectory subSubDir = subDir.mkdir( "mySubSubDirectory" );
 
    // put here whatever you want to do at the beginning of the job
-  //hFile = new TFile ( "histo.root", "RECREATE" );
-     
+    //hFile = new TFile ( "digis_tree.root", "RECREATE" );
+   
+    clusterTree = fs->make<TTree>("tree","digis");
+    clusterTree->Branch("module",(void*)clustersModuleName,"string/C",36);
+    clusterTree->Branch("size",&clustersSizeBranch,"size/I");
+    clusterTree->Branch("complete",&clustersNcomplete,"complete/I");
+    clusterTree->Branch("broken1",&clustersNbroken1,"broken1/I");
+    clusterTree->Branch("broken2",&clustersNbroken2,"broken2/I");
+
+
+    // < <module_name, cluster_length>, count >
+
     hdetunit = fs->make<TH1F>( "hdetunit", "Det unit", 1000,
                               302000000.,302300000.);
     hpixid = fs->make<TH1F>( "hpixid", "Pix det id", 10, 0., 10.);
@@ -316,24 +280,24 @@ void PixDigisTest::beginJob() {
     hz4id = fs->make<TH1F>( "hz4id", "Z-index id L4", 11, -5.5, 5.5);
  
     hdigisPerDet1 = fs->make<TH1F>( "hdigisPerDet1", "Digis per det l1", 
-			      1000, -0.5, 999.5);
+			      400, -0.5, 399.5);
     hdigisPerDet2 = fs->make<TH1F>( "hdigisPerDet2", "Digis per det l2", 
-			      600, -0.5, 599.5);
+			      200, -0.5, 199.5);
     hdigisPerDet3 = fs->make<TH1F>( "hdigisPerDet3", "Digis per det l3", 
-			      400, -0.5, 399.5);
+			      200, -0.5, 199.5);
     hdigisPerDet4 = fs->make<TH1F>( "hdigisPerDet4", "Digis per det l4", 
-			      400, -0.5, 399.5);
+			      200, -0.5, 199.5);
     //
     //const float maxSize=199.5;
-    const float maxSize=39999.5;
+    const float maxSize=9999.5;
     hdigisPerLay1 = fs->make<TH1F>( "hdigisPerLay1", "Digis per layer l1", 
-			      1000, -0.5, maxSize);
+			      100, -0.5, maxSize);
     hdigisPerLay2 = fs->make<TH1F>( "hdigisPerLay2", "Digis per layer l2", 
-			      1000, -0.5, maxSize);
+			      100, -0.5, maxSize);
     hdigisPerLay3 = fs->make<TH1F>( "hdigisPerLay3", "Digis per layer l3", 
-			      1000, -0.5, maxSize);
+			      100, -0.5, maxSize);
     hdigisPerLay4 = fs->make<TH1F>( "hdigisPerLay4", "Digis per layer l4", 
-			      1000, -0.5, maxSize);
+			      100, -0.5, maxSize);
     hdetsPerLay1 = fs->make<TH1F>( "hdetsPerLay1", "Full dets per layer l1", 
 			      161, -0.5, 160.5);
     hdetsPerLay2 = fs->make<TH1F>( "hdetsPerLay2", "Full dets per layer l2", 
@@ -370,21 +334,20 @@ void PixDigisTest::beginJob() {
     hneloss2 = fs->make<TH1F>( "hneloss2", "Pix noise charge l2", 256, 0., 256.);
     hneloss3 = fs->make<TH1F>( "hneloss3", "Pix noise charge l3", 256, 0., 256.);
     hneloss4 = fs->make<TH1F>( "hneloss4", "Pix noise charge l4", 256, 0., 256.);
-    //heloss1bigx = fs->make<TH1F>( "heloss1bigx", "L1 big-x pix", 256, 0., 256.);
-    //heloss1bigy = fs->make<TH1F>( "heloss1bigy", "L1 big-y pix", 256, 0., 256.);
+    heloss1bigx = fs->make<TH1F>( "heloss1bigx", "L1 big-x pix", 256, 0., 256.);
+    heloss1bigy = fs->make<TH1F>( "heloss1bigy", "L1 big-y pix", 256, 0., 256.);
 
     hcols1 = fs->make<TH1F>( "hcols1", "Layer 1 cols", 500,-1.5,498.5);
     hcols2 = fs->make<TH1F>( "hcols2", "Layer 2 cols", 500,-1.5,498.5);
     hcols3 = fs->make<TH1F>( "hcols3", "Layer 3 cols", 500,-1.5,498.5);
     hcols4 = fs->make<TH1F>( "hcols4", "Layer 4 cols", 500,-1.5,498.5);
-    hcols1Many = fs->make<TH1F>( "hcols1Many", "Layer 1 cols with many hits", 500,-1.5,498.5);
-    hcols1ManyCounts= fs->make<TH1F>( "hcols1ManyCounts","Layer 1: hits per dcol",200,-1.5,198.5);
+    hcols1big = fs->make<TH1F>( "hcols1big", "Layer 1 big cols", 500,-1.5,498.5);
  
     hrows1 = fs->make<TH1F>( "hrows1", "Layer 1 rows", 200,-1.5,198.5);
     hrows2 = fs->make<TH1F>( "hrows2", "Layer 2 rows", 200,-1.5,198.5);
     hrows3 = fs->make<TH1F>( "hrows3", "layer 3 rows", 200,-1.5,198.5);
     hrows4 = fs->make<TH1F>( "hrows4", "layer 4 rows", 200,-1.5,198.5);
-    //hrows1big = fs->make<TH1F>( "hrows1big", "Layer 1 big rows", 200,-1.5,198.5);
+    hrows1big = fs->make<TH1F>( "hrows1big", "Layer 1 big rows", 200,-1.5,198.5);
  
     hblade1 = fs->make<TH1F>( "hblade1", "blade num, disk1", 60, 0., 60.);
     hblade2 = fs->make<TH1F>( "hblade2", "blade num, disk2", 60, 0., 60.);
@@ -440,10 +403,14 @@ void PixDigisTest::beginJob() {
     hpixMap4 = fs->make<TH2F>("hpixMap4"," ",416,0.,416.,160,0.,160.);
     hpixMap4->SetOption("colz");
 
-    hpdetMaps1 = fs->make<TH2F>("hpdetMaps1","hits in l1 with adc<0",9,-4.5,4.5,13,-6.5,6.5);
+    hpdetMaps1 = fs->make<TH2F>("hpdetMaps1"," slected hits ",9,-4.5,4.5,13,-6.5,6.5);
     hpdetMaps1->SetOption("colz");
-    hpdetMaps2 = fs->make<TH2F>("hpdetMaps2","l1 with many hits per col",9,-4.5,4.5,13,-6.5,6.5);
+    hpdetMaps2 = fs->make<TH2F>("hpdetMaps2","  slected hits ",9,-4.5,4.5,29,-14.5,14.5);
     hpdetMaps2->SetOption("colz");
+    hpdetMaps3 = fs->make<TH2F>("hpdetMaps3","  slected hits ",9,-4.5,4.5,45,-22.5,22.5);
+    hpdetMaps3->SetOption("colz");
+    hpdetMaps4 = fs->make<TH2F>("hpdetMaps4","  slected hits ",9,-4.5,4.5,65,-32.5,32.5);
+    hpdetMaps4->SetOption("colz");
 
 
     //hpixMapNoise = fs->make<TH2F>("hpixMapNoise"," ",416,0.,416.,160,0.,160.);
@@ -453,71 +420,6 @@ void PixDigisTest::beginJob() {
     //htest2 = fs->make<TH2F>("htest2"," ",10,0.,10.,300,0.,300.);
     //htest->SetOption("colz");
     //htest2->SetOption("colz");
-
-  // Special test hitos for inefficiency effects
-  hpixDetMap10 = fs->make<TH2F>( "hpixDetMap10", "pix det layer 1",
-				 416,0.,416.,160,0.,160.);
-  hpixDetMap11 = fs->make<TH2F>( "hpixDetMap11", "pix det layer 1",
-				 416,0.,416.,160,0.,160.);
-  hpixDetMap12 = fs->make<TH2F>( "hpixDetMap12", "pix det layer 1",
-				 416,0.,416.,160,0.,160.);
-  hpixDetMap13 = fs->make<TH2F>( "hpixDetMap13", "pix det layer 1",
-				 416,0.,416.,160,0.,160.);
-  hpixDetMap14 = fs->make<TH2F>( "hpixDetMap14", "pix det layer 1",
-				  416,0.,416.,160,0.,160.);
-  hpixDetMap15 = fs->make<TH2F>( "hpixDetMap15", "pix det layer 1",
-				  416,0.,416.,160,0.,160.);
-  hpixDetMap16 = fs->make<TH2F>( "hpixDetMap16", "pix det layer 1",
-				  416,0.,416.,160,0.,160.);
-  hpixDetMap17 = fs->make<TH2F>( "hpixDetMap17", "pix det layer 1",
-				  416,0.,416.,160,0.,160.);
-  hpixDetMap18 = fs->make<TH2F>( "hpixDetMap18", "pix det layer 1",
-				  416,0.,416.,160,0.,160.);
-  hpixDetMap19 = fs->make<TH2F>( "hpixDetMap19", "pix det layer 1",
-				  416,0.,416.,160,0.,160.);
-
-  hpixDetMap20 = fs->make<TH2F>( "hpixDetMap20", "pix det layer 2",
-				 416,0.,416.,160,0.,160.);
-  hpixDetMap21 = fs->make<TH2F>( "hpixDetMap21", "pix det layer 2",
-				 416,0.,416.,160,0.,160.);
-  hpixDetMap22 = fs->make<TH2F>( "hpixDetMap22", "pix det layer 2",
-				 416,0.,416.,160,0.,160.);
-  hpixDetMap23 = fs->make<TH2F>( "hpixDetMap23", "pix det layer 2",
-				 416,0.,416.,160,0.,160.);
-  hpixDetMap24 = fs->make<TH2F>( "hpixDetMap24", "pix det layer 2",
-				  416,0.,416.,160,0.,160.);
-  hpixDetMap25 = fs->make<TH2F>( "hpixDetMap25", "pix det layer 2",
-				  416,0.,416.,160,0.,160.);
-  hpixDetMap26 = fs->make<TH2F>( "hpixDetMap26", "pix det layer 2",
-				  416,0.,416.,160,0.,160.);
-  hpixDetMap27 = fs->make<TH2F>( "hpixDetMap27", "pix det layer 2",
-				  416,0.,416.,160,0.,160.);
-  hpixDetMap28 = fs->make<TH2F>( "hpixDetMap28", "pix det layer 2",
-				  416,0.,416.,160,0.,160.);
-  hpixDetMap29 = fs->make<TH2F>( "hpixDetMap29", "pix det layer 2",
-				  416,0.,416.,160,0.,160.);
-
-  hpixDetMap30 = fs->make<TH2F>( "hpixDetMap30", "pix det layer 3",
-				 416,0.,416.,160,0.,160.);
-  hpixDetMap31 = fs->make<TH2F>( "hpixDetMap31", "pix det layer 3",
-				 416,0.,416.,160,0.,160.);
-  hpixDetMap32 = fs->make<TH2F>( "hpixDetMap32", "pix det layer 3",
-				 416,0.,416.,160,0.,160.);
-  hpixDetMap33 = fs->make<TH2F>( "hpixDetMap33", "pix det layer 3",
-				 416,0.,416.,160,0.,160.);
-  hpixDetMap34 = fs->make<TH2F>( "hpixDetMap34", "pix det layer 3",
-				  416,0.,416.,160,0.,160.);
-  hpixDetMap35 = fs->make<TH2F>( "hpixDetMap35", "pix det layer 3",
-				  416,0.,416.,160,0.,160.);
-  hpixDetMap36 = fs->make<TH2F>( "hpixDetMap36", "pix det layer 3",
-				  416,0.,416.,160,0.,160.);
-  hpixDetMap37 = fs->make<TH2F>( "hpixDetMap37", "pix det layer 3",
-				  416,0.,416.,160,0.,160.);
-  hpixDetMap38 = fs->make<TH2F>( "hpixDetMap38", "pix det layer 3",
-				  416,0.,416.,160,0.,160.);
-  hpixDetMap39 = fs->make<TH2F>( "hpixDetMap39", "pix det layer 3",
-				  416,0.,416.,160,0.,160.);
-
 
   hevent = fs->make<TH1F>("hevent","event",1000,0,10000000.);
   horbit = fs->make<TH1F>("horbit","orbit",100, 0,100000000.);
@@ -571,8 +473,6 @@ void PixDigisTest::beginJob() {
   hadc0ls = fs->make<TProfile>("hadc0ls","adc0 vs ls",1000,0,1000,     0.,255.);
   hadc0bx = fs->make<TProfile>("hadc0bx","adc0 vs bx",4000,-0.5,3999.5,0.,255.);
 
-  hDcolsCount = fs->make<TH1F>( "hDcolsCount", "Counts per dcol ",400,0.,4000.);
-
 #endif
 
 }
@@ -590,27 +490,16 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
   using namespace edm;
   if(PRINT) cout<<" Analyze PixDigisTest for phase "<<phase1_<<endl;
 
-  int run       = iEvent.id().run();
+  //  int run       = iEvent.id().run();
   int event     = iEvent.id().event();
   int lumiBlock = iEvent.luminosityBlock();
   int bx        = iEvent.bunchCrossing();
   int orbit     = iEvent.orbitNumber();
 
+  digiTestLS = lumiBlock;
+
   hbx0->Fill(float(bx));
   hlumi0->Fill(float(lumiBlock));
-
-  if(select1>0) {
-    // skip events with few pixel dets
-    if(select1==1) { if(-1<select2) return; } // dummy 
-    // select events only for a defined bx
-    else if(select1==2) { if(bx!=select2) return; } 
-    else if(select1==3) { if(  !( (bx==39)||(bx==201)||(bx==443)||(bx==499)||(bx==1083)||(bx==1337)||(bx==1492)||(bx==1977)||(bx==2231)||(bx==2287)||(bx==2871)||(bx==3224)||(bx==3280) )   ) return; } 
-    else if(select1==4) { if( ( (bx==1)||(bx==39)||(bx==201)||(bx==443)||(bx==499)||(bx==1083)||(bx==1337)||(bx==1492)||(bx==1977)||(bx==2231)||(bx==2287)||(bx==2871)||(bx==3224)||(bx==3280) )   ) return; } 
-    // select specific event
-    else if(select1==10) { if(event!=select2) return; } 
-    //....
-  }
-
 
   // // eliminate bunches with beam
   bool bunch = false;
@@ -742,7 +631,8 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
     unsigned int blade=0; //1-24
     unsigned int side=0; //size=1 for -z, 2 for +z
     unsigned int panel=0; //panel=1
- 
+    
+    std::string fullModuleName = "unititialized"; 
    // Subdet it, pix barrel=1, forward=2
     if(subid==2) {   // forward
 
@@ -785,7 +675,7 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
       // cout<<pfn3.diskName()<<" "<<pfn3.bladeName()<<" "<<pfn3.pannelName()<<" "<<pfn3.plaquetteName()
       // 	  <<" "<<pfn3.name()<<endl;
 
-
+      fullModuleName = "forward";
 
     } else if(subid == 1) { // Barrel 
       
@@ -810,6 +700,7 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
       // change ladeer sign for Outer )x<0)
       if(shell==1 || shell==3) ladder = -ladder;
       
+      fullModuleName = pbn.name();
 
       if(PRINT) { 
 	cout<<" BPix layer/ladder/module (cmssw) "
@@ -865,65 +756,42 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
 
 #endif  // USE_SIM_LINKS
 
-    bool select = false; // (abs(module)==4) && (layer==1);
-    if(select) cout<<" run "<<run<<" event "<<event<<" bx "<<bx<<" ladder/module "<<ladder<<"/"<<module<<endl;
-
     unsigned int numberOfDigis = 0;
-    //unsigned int numDigisInCol = 0;
-    //int oldCol=-1;
+   
+    strncpy(digiTestModuleName, fullModuleName.c_str(), 36);
+    digiTestEvent = count0;
+    digiTestNdigis = DSViter->data.size(); 
 
-    // Clear the module matrix
-    if(layer==1) {
-      for(int col=0;col<416;++col)
-	for(int row=0;row<160;++row)
-	  oneModule[col][row]=0;
-    }
+    // simple col/row vector for custom clustering
+    std::vector < std::pair<int, int> > pixels;
 
-    // Look at digis in this module 
+    // Look at digis now
     edm::DetSet<PixelDigi>::const_iterator  di;
+    int digiTestCounter = 0;
       for(di = DSViter->data.begin(); di != DSViter->data.end(); di++) {
 	//for(di = begin; di != end; di++) {
 	
 	numberOfDigis++;
 	totalNumOfDigis++;
 	count2++;
-	int adc = di->adc();    // charge, modifued to unsiged short 
-	int col = di->column(); // column 
-	int row = di->row();    // row
-	//int tof = di->time();    // tof always 0, method deleted
-	
-	// channel index needed to look for the simlink to simtracks
-	int channel = PixelChannelIdentifier::pixelToChannel(row,col);
-	if(PRINT || select) cout <<numberOfDigis<< " Col: " << col << " Row: " << row 
-		       << " ADC: " << adc <<" channel = "<<channel<<endl;
-	
-	
-	// Accumuate dcols, do only for L1
-	if(layer==1) {
-	  // fill the module 
-	  oneModule[col][row]++;
-	  int ind = moduleIndex(ladder,module);
-	  int roc = rocId(col,row);
-	  int dcol = (col%52)/2;
-	  dCols[ind][roc][dcol]++;
-	  //cout<<layer<<" "<<ladder<<" "<<module<<" "<<col<<" "<<row<<" "
-	  //  <<ind<<" "<<roc<<" "<<dcol<<" "<<dCols[ind][roc][dcol]<<endl;
-	}
+       int adc = di->adc();    // charge, modifued to unsiged short 
+       int col = di->column(); // column 
+       int row = di->row();    // row
+       //int tof = di->time();    // tof always 0, method deleted
 
-	// // Analyse dcols with many hits 
-	// if(col==oldCol) { // same column 
-	//   numDigisInCol++;
-	// } else {
-	//   if( (layer==1) && (numDigisInCol>20)) {
-	//     if(numDigisInCol>79) { 
-	//       cout<<" col with many hits "<<module<<" "<<ladder<<" "
-	// 	  <<oldCol<<" "<<numDigisInCol<<endl;
-	//       //countFullDcols++;
-	//     }
-	//   }
-	//   numDigisInCol=1;
-	//   oldCol=col;	  
-	// }
+       digiTestDigiCol[digiTestCounter] = col;
+       digiTestDigiRow[digiTestCounter] = row;
+       digiTestDigiAdc[digiTestCounter] = adc;
+       digiTestCounter++;
+       
+       if (adc > 0) {
+           pixels.push_back(std::make_pair(col, row));
+       }
+
+       // channel index needed to look for the simlink to simtracks
+       int channel = PixelChannelIdentifier::pixelToChannel(row,col);
+       if(PRINT) cout <<numberOfDigis<< " Col: " << col << " Row: " << row 
+		      << " ADC: " << adc <<" channel = "<<channel<<endl;
 
        if(col>415) cout<<" Error: column index too large "<<col<<" Barrel layer, ladder, module "
 		       <<layer<<" "<<ladder<<" "<<zindex<<endl;
@@ -942,34 +810,6 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
 	   if(adc<1) hpdetMaps1->Fill(float(module),float(ladder));
 	   hadc1ls->Fill(float(lumiBlock),float(adc));
 	   hadc1bx->Fill(float(bx),float(adc));
-
-	   float pixy = col; float pixx=row;
-	    if     ( ladder==1 && module==4) hpixDetMap10->Fill(pixy,pixx,adc); // 
-	    else if( ladder==2 && module==4) hpixDetMap11->Fill(pixy,pixx,adc); // " 
-	    else if( ladder==3 && module==4) hpixDetMap12->Fill(pixy,pixx,adc); // "
-	    else if( ladder==4 && module==4) hpixDetMap13->Fill(pixy,pixx,adc); // 
-	    else if( ladder==5 && module==4) hpixDetMap14->Fill(pixy,pixx,adc); // 
-	    else if( ladder==6 && module==4) hpixDetMap15->Fill(pixy,pixx,adc); // 
-	    else if( ladder==1 && module==-4) hpixDetMap16->Fill(pixy,pixx,adc); //
-	    else if( ladder==2 && module==-4) hpixDetMap17->Fill(pixy,pixx,adc); // 
-	    else if( ladder==3 && module==-4) hpixDetMap18->Fill(pixy,pixx,adc); // 
-	    else if( ladder==4 && module==-4) hpixDetMap19->Fill(pixy,pixx,adc); // 
-	    else if( ladder==5 && module==-4) hpixDetMap20->Fill(pixy,pixx,adc); // 
-	    else if( ladder==6 && module==-4) hpixDetMap21->Fill(pixy,pixx,adc); // 
-	    else if( ladder==-1 && module==4) hpixDetMap22->Fill(pixy,pixx,adc); // 
-	    else if( ladder==-2 && module==4) hpixDetMap23->Fill(pixy,pixx,adc); //
-	    else if( ladder==-3 && module==4) hpixDetMap24->Fill(pixy,pixx,adc); //
-	    else if( ladder==-4 && module==4) hpixDetMap25->Fill(pixy,pixx,adc); // 
-	    else if( ladder==-5 && module==4) hpixDetMap26->Fill(pixy,pixx,adc); // 
-	    else if( ladder==-6 && module==4) hpixDetMap27->Fill(pixy,pixx,adc); // 
-	    else if( ladder==-1 && module==-4) hpixDetMap28->Fill(pixy,pixx,adc); //
-	    else if( ladder==-2 && module==-4) hpixDetMap29->Fill(pixy,pixx,adc); // 
-	    else if( ladder==-3 && module==-4) hpixDetMap30->Fill(pixy,pixx,adc); // 
-	    else if( ladder==-4 && module==-4) hpixDetMap31->Fill(pixy,pixx,adc); // 
-	    else if( ladder==-5 && module==-4) hpixDetMap32->Fill(pixy,pixx,adc); // 
-	    else if( ladder==-6 && module==-4) hpixDetMap33->Fill(pixy,pixx,adc); // 
-	    else if( ladder==-1 && module==-2) hpixDetMap34->Fill(pixy,pixx,adc); // 
-
 
 	   totalNumOfDigis1++;
 	   //htest2->Fill(float(module),float(adc));
@@ -1002,6 +842,7 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
 	   hrows2->Fill(float(row));
 	   hpixMap2->Fill(float(col),float(row));
 	   hpdetMap2->Fill(float(module),float(ladder));
+	   if(adc<1) hpdetMaps2->Fill(float(module),float(ladder));
 	   hadc2ls->Fill(float(lumiBlock),float(adc));
 	   hadc2bx->Fill(float(bx),float(adc));
 	   totalNumOfDigis2++;
@@ -1015,6 +856,7 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
 	   hrows3->Fill(float(row));
 	   //if(ladder==-13 && module==-4) 
 	   hpdetMap3->Fill(float(module),float(ladder));
+	   if(adc<1) hpdetMaps3->Fill(float(module),float(ladder));
 	   hpixMap3->Fill(float(col),float(row));
 	   hadc3ls->Fill(float(lumiBlock),float(adc));
 	   hadc3bx->Fill(float(bx),float(adc));
@@ -1028,6 +870,7 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
 	   hcols4->Fill(float(col));
 	   hrows4->Fill(float(row));
 	   hpdetMap4->Fill(float(module),float(ladder));
+	   if(adc<1) hpdetMaps4->Fill(float(module),float(ladder));
 	   hpixMap4->Fill(float(col),float(row));
 	   hadc4ls->Fill(float(lumiBlock),float(adc));
 	   hadc4bx->Fill(float(bx),float(adc));
@@ -1076,7 +919,228 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
        
       } // end for digis in detunit
 
-      //if(PRINT) 
+      if (restrictToLumisection < 1 || restrictToLumisection == lumiBlock) {
+            //------------------------------------------------------------------------------------------------------------------------------
+            // clustering
+            //------------------------------------------------------------------------------------------------------------------------------
+            //std::vector < std::pair<int, int> > pixels;
+            std::vector < std::pair<int, int> > pixelsNew;
+            std::vector < std::pair<int, int> > cluster;
+            std::vector < std::vector < std::pair<int, int> > > clusters;
+
+            // start with all hits from the event
+
+            int nClusters = 0;
+            int clusterRadius = 4; //default: 2
+            int newPixelsFound = 0;
+            
+            // as long as pixels left
+            while (pixels.size() > 0 || newPixelsFound > 0) {
+                // take last pixel to initialize the clusters
+                if (cluster.size() < 1) {
+                    cluster.push_back(pixels[pixels.size()-1]);
+                    pixels.pop_back();
+                }
+
+                // loop over all pixels and check if one of them is close to already found cluster and merge pixel with this cluster
+                newPixelsFound = 0;
+                for (int i=pixels.size()-1;i>=0;i--) {
+                    for (unsigned int j=0;j<cluster.size();j++) {
+                        if (abs(pixels[i].first-cluster[j].first) < clusterRadius && abs(pixels[i].second-cluster[j].second) < clusterRadius) {
+                            // add to cluster
+                            cluster.push_back(pixels[i]);
+                            // remove from list
+                            pixels.erase(pixels.begin()+i);
+                            newPixelsFound++;
+                            break;
+                        }
+                    }
+                }
+
+                if (newPixelsFound < 1) {
+                    // complete cluster found!
+                    nClusters++;
+                    sort(cluster.begin(), cluster.end() );
+                    clusters.push_back(cluster);
+                    cluster.clear();
+                } else {
+                    // remove duplicates from cluster
+                    sort(cluster.begin(), cluster.end() );
+                    cluster.erase(unique( cluster.begin(), cluster.end() ), cluster.end() );
+                }
+            }
+            if (cluster.size() > 0) {
+                sort(cluster.begin(), cluster.end() );
+                clusters.push_back(cluster);
+                cluster.clear();
+            }
+
+            //------------------------------------------------------------------------------------------------------------------------------
+            // classify the found clusters by shape
+            //------------------------------------------------------------------------------------------------------------------------------
+
+            // loop over all clusters
+            for (std::vector < std::vector < std::pair<int, int> > >::iterator itCluster = clusters.begin(); itCluster != clusters.end(); itCluster++) {
+
+                // find "bottom left" corner (=min row, min col)
+                int minRow = 600;
+                int minCol = 600;
+                for (std::vector < std::pair<int, int> >::iterator clusterPix=(*itCluster).begin(); clusterPix != (*itCluster).end(); clusterPix++) {
+                    if ((*clusterPix).first < minCol) minCol = (*clusterPix).first;
+                    if ((*clusterPix).second < minRow) minRow = (*clusterPix).second;
+                }
+
+                // create relative cluster shape vector
+                std::vector < std::pair<int, int> > relativeClusterShape;
+                for (std::vector < std::pair<int, int> >::iterator clusterPix=(*itCluster).begin(); clusterPix != (*itCluster).end(); clusterPix++) {
+                    relativeClusterShape.push_back(std::make_pair((*clusterPix).first - minCol, (*clusterPix).second - minRow));
+                }
+
+                // sort it
+                std::sort(relativeClusterShape.begin(), relativeClusterShape.end());
+
+                // count clusters of this shape
+                // disabled: only look at specific shapes, see below
+                //if (clusterShapes.find(relativeClusterShape) != clusterShapes.end()) {
+                //    clusterShapes[relativeClusterShape]++;
+                //} else {
+                //    clusterShapes[relativeClusterShape] = 1;
+                //}
+
+                // check if the cluster is broken
+                std::vector< std::pair< int,int >  > connectedPart;
+
+                // check if the cluster is broken
+                // clusters of specific size
+                for (unsigned int checkClusterSize = 4; checkClusterSize<12; checkClusterSize++) {
+
+                    // count all complete clusters of this size (includes longer clusters with outside pixels missing...)
+                    if (relativeClusterShape.size() == checkClusterSize) {
+
+                        bool specificClusterShapeFound = true;
+                        // check all pixels
+                        for (unsigned int p=0;p<relativeClusterShape.size();p++) {
+
+                            // only use clusters aligned with ROC rows
+                            if (relativeClusterShape[p].second != 0) {
+                                specificClusterShapeFound = false;
+                                break;
+                            }
+
+                            // all pixels there
+                            if (relativeClusterShape[p].first != (int)p) {
+                                specificClusterShapeFound = false;
+                                break;
+                            }
+                        }
+
+                        if (specificClusterShapeFound) {
+                            std::pair<std::string, int> moduleClusterIdentifier = std::make_pair(fullModuleName, checkClusterSize);
+                            if (clustersComplete.find(moduleClusterIdentifier) == clustersComplete.end()) {
+                                clustersComplete[moduleClusterIdentifier] = 1;
+                            } else {
+                                clustersComplete[moduleClusterIdentifier]++;
+                            }
+                            break;                           
+                        }
+                    }
+
+                    // count all broken clusters, which are shorter by 2 pixels
+                    if (relativeClusterShape.size() == checkClusterSize - 2) {
+
+                        // check all the n-2 different places where a cluster could break
+                        for (unsigned int k=0;k<checkClusterSize-3;k++) {
+
+                            // check all pixels
+                            bool specificClusterShapeFound = true;
+                            for (unsigned int p=0;p<relativeClusterShape.size();p++) {
+
+                                // only use clusters aligned with ROC rows
+                                if (relativeClusterShape[p].second != 0) {
+                                    specificClusterShapeFound = false;
+                                    break;
+                                }
+
+                                // in left part of cluster
+                                if ((p < k + 1) && relativeClusterShape[p].first == (int)p) {
+                                    // everything fine
+                                // in right part of cluster
+                                } else if ((p > k) && relativeClusterShape[p].first == (int)(p + 2)) {
+                                    // everything fine
+                                } else {
+                                    specificClusterShapeFound = false;
+                                    break;
+                                }
+                            }
+
+                            if (specificClusterShapeFound) {
+                                
+				std::pair<std::string, int> moduleClusterIdentifier = std::make_pair(fullModuleName, checkClusterSize);
+				if (clustersSplitByTwo.find(moduleClusterIdentifier) == clustersSplitByTwo.end()) {
+				    clustersSplitByTwo[moduleClusterIdentifier] = 1;
+				} else {
+				    clustersSplitByTwo[moduleClusterIdentifier]++;
+				}
+				break;                           
+                                //std::cout << "size " << checkClusterSize << " ---- found ---- k = " << k << "\n";
+                                //for (int j =0;j<relativeClusterShape.size();j++) {
+                                //    std::cout << relativeClusterShape[j].first << "," << relativeClusterShape[j].second << " ";
+                                //}
+                                //std::cout << "\n";
+                                break;
+                            }
+
+                        }
+                    }
+
+                    // count all broken clusters, which are shorter by 1 pixels
+                    if (relativeClusterShape.size() == checkClusterSize - 1) {
+
+                        // check all the n-2 different places where a cluster could break
+                        for (unsigned int k=0;k<checkClusterSize-2;k++) {
+
+                            // check all pixels
+                            bool specificClusterShapeFound = true;
+                            for (unsigned int p=0;p<relativeClusterShape.size();p++) {
+
+                                // only use clusters aligned with ROC rows
+                                if (relativeClusterShape[p].second != 0) {
+                                    specificClusterShapeFound = false;
+                                    break;
+                                }
+
+                                // in left part of cluster
+                                if ((p < k + 1) && relativeClusterShape[p].first == (int)p) {
+                                    // everything fine
+                                // in right part of cluster
+                                } else if ((p > k) && relativeClusterShape[p].first == (int)(p + 1)) {
+                                    // everything fine
+                                } else {
+                                    specificClusterShapeFound = false;
+                                    break;
+                                }
+                            }
+
+                            if (specificClusterShapeFound) {
+
+				std::pair<std::string, int> moduleClusterIdentifier = std::make_pair(fullModuleName, checkClusterSize);
+				if (clustersSplitByOne.find(moduleClusterIdentifier) == clustersSplitByOne.end()) {
+				    clustersSplitByOne[moduleClusterIdentifier] = 1;
+				} else {
+				    clustersSplitByOne[moduleClusterIdentifier]++;
+				}
+				break;                           
+                            }
+
+                        }
+                    }
+                }
+
+            } // done looping over all clusters
+       } 
+
+
+       //if(PRINT) 
       //cout<<" for det "<<detid<<" digis = "<<numberOfDigis<<endl;
 
 #ifdef HISTOS
@@ -1131,7 +1195,6 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
 	    hladder1id->Fill(float(ladder));
 	    hz1id->Fill(float(module));
 	    hdetMap1->Fill(float(module),float(ladder));
-	    //if(numOfDigisPerDet1>200 ) hpdetMaps2->Fill(float(module),float(ladder));
 	    ++numberOfDetUnits1;
 	    hdigisPerDet1->Fill(float(numOfDigisPerDet1));
 	    numOfDigisPerDet1=0;
@@ -1165,72 +1228,7 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
 	    hphiz4->Fill(detZ,detPhi);
 	    
 	  } // layer
-
-
-	  if(layer==1) {
-	    const int dcolThr = 54;
-	    // Analyse this module 
-	    for(int col=0;col<416;col+=2) {
-	      //cout<<col<<endl;
-	      int dcolCount=0;
-	      for(int row=0;row<80;++row) { 
-		if(oneModule[col][row]>0)   
-		  {dcolCount++;}
-		//{dcolCount++; cout<<col<<" "<<row<<" "<<oneModule[col][row]<<endl;}
-	      }
-	      for(int row=0;row<80;++row) {
-		if(oneModule[col+1][row]>0) 
-		  {dcolCount++;}
-		//{dcolCount++; cout<<(col+1)<<" "<<row<<" "<<oneModule[col+1][row]<<endl;}
-	      }
-	      hcols1ManyCounts->Fill(float(dcolCount));
-	      if(dcolCount>dcolThr) {
-		cout<<" full dcol (lower roc) "<<dcolCount<<" "
-		    <<col<<" "<<module<<" "<<ladder<<endl;
-		countFullDcols++;
-		hpdetMaps2->Fill(float(module),float(ladder));
-		hcols1Many->Fill(float(col));
-		
-		// for(int row=0;row<80;++row) 
-		//   if(oneModule[col][row]>0)   
-		//     {cout<<col<<" "<<row<<" "<<oneModule[col][row]<<endl;}
-		// for(int row=0;row<80;++row) 
-		//   if(oneModule[col+1][row]>0) 
-		//     {cout<<(col+1)<<" "<<row<<" "<<oneModule[col+1][row]<<endl;}
-		
-	      }
-	      dcolCount=0;
-	      for(int row=80;row<160;++row) 
-		if(oneModule[col][row]>0)   
-		  {dcolCount++;}
-	      //{dcolCount++; cout<<col<<" "<<row<<" "<<oneModule[col][row]<<endl;}
-	      for(int row=80;row<160;++row) 
-		if(oneModule[col+1][row]>0) 
-		  {dcolCount++;}
-	      //{dcolCount++; cout<<(col+1)<<" "<<row<<" "<<oneModule[col+1][row]<<endl;}
-	      hcols1ManyCounts->Fill(float(dcolCount));
-	      if(dcolCount>dcolThr) {
-		cout<<" full dcol (upper roc)"<<dcolCount<<" "
-		    <<col<<" "<<module<<" "<<ladder<<endl;
-		countFullDcols++;
-		hpdetMaps2->Fill(float(module),float(ladder));
-		hcols1Many->Fill(float(col));
-		
-		// for(int row=80;row<160;++row) 
-		//   if(oneModule[col][row]>0)   
-		//     {cout<<col<<" "<<row<<" "<<oneModule[col][row]<<endl;}
-		// for(int row=80;row<160;++row) 
-		//   if(oneModule[col+1][row]>0) 
-		//     {cout<<(col+1)<<" "<<row<<" "<<oneModule[col+1][row]<<endl;}
-		
-	      }
-	    }
-	  } // if layer 1
-
-
 	} // if bpix	
-	
-
       } // if valid
 #endif
 
@@ -1298,45 +1296,6 @@ void PixDigisTest::endJob(){
   else 
     cout<<count0<<" "<<count1<<" "<<count2<<" "<<count3<<endl;
 
-  cout<<" Cols with many hits "<<countFullDcols<<endl;
-
-  if(1) {
-    int emptyROC=0, totalEmptyCols=0, rocsWithEmptyCols=0;
-    for(int ind=0;ind<120;++ind) {
-      if( !validIndex(ind) ) continue;
-      for(int roc=0;roc<16;++roc) {
-	int rocCount=0;
-	int emptyCols=0;
-	for(int dcol=0;dcol<26;++dcol) {
-	  int count = dCols[ind][roc][dcol];
-	  rocCount += count;
-	  hDcolsCount->Fill(float(count));
-	  if(count==0) {
-	    emptyCols++;
-	    //cout<<" empty dcol "<<dcol<<" "<<roc<<" "<<ind<<" "
-	    //	<<validIndex(ind,true)<<endl;
-	  } else if(count>2000) {
-	    cout<<" hot dcol "<<count<<" "<<dcol<<" "
-		<<roc<<" "<<ind<<endl;
-	    //} else {
-	    //cout<<" count "<<count<<" "<<dcol<<" "
-	    //	<<roc<<" "<<ind<<" "<<validIndex(ind,true)<<endl;
-	  }
-	} // dcol
-	if(rocCount==0) {emptyROC++;} //cout<<" empty roc "<<ind<<" "<<roc<<endl;
-	else {
-	  if(emptyCols>0) { 
-	    totalEmptyCols += emptyCols;
-	    rocsWithEmptyCols++;
-	    cout<<" empty cols in module (index)="<<ind<<" roc "<<roc<<" num "<<emptyCols<<endl;
-	  }
-	}
-      } // roc
-    } // module 
-    cout<<" empty ROCs "<<emptyROC<<" empty cols "<<totalEmptyCols
-	<<" rocs with empty cols"<<rocsWithEmptyCols<<endl;
-  }
-
   float norm = 1.;
   if(count3>0) {
     norm = 1./float(count3);
@@ -1351,10 +1310,31 @@ void PixDigisTest::endJob(){
   hpdetMap2->Scale(norm);
   hpdetMap3->Scale(norm);
   hpdetMap4->Scale(norm);
-  hpdetMaps1->Scale(norm);
-  hpdetMaps2->Scale(norm);
-  //hpdetMaps3->Scale(norm);
-  //hpdetMaps4->Scale(norm);
+
+  // print cluster shape dictionary
+  for ( std::map< std::pair<std::string, int>, int>::iterator clusterDict_it = clustersComplete.begin(); clusterDict_it!=clustersComplete.end(); ++clusterDict_it) {
+      std::pair<std::string, int> moduleClusterIdentifier = clusterDict_it->first;
+      int clustersCount = clusterDict_it->second;
+      int clustersCount1 = 0;
+      if (clustersSplitByOne.find(moduleClusterIdentifier) != clustersSplitByOne.end()) {
+          clustersCount1 = clustersSplitByOne[moduleClusterIdentifier];
+      }
+      int clustersCount2 = 0;
+      if (clustersSplitByTwo.find(moduleClusterIdentifier) != clustersSplitByTwo.end()) {
+          clustersCount2 = clustersSplitByTwo[moduleClusterIdentifier];
+      }
+      cout << "module " << moduleClusterIdentifier.first << " size " << moduleClusterIdentifier.second << " count " << clustersCount << " " << clustersCount1 << " " << clustersCount2 << "\n";
+
+    // fill tree
+    strncpy(clustersModuleName, moduleClusterIdentifier.first.c_str(), 36);
+    clustersSizeBranch = moduleClusterIdentifier.second;
+    clustersNcomplete = clustersCount;
+    clustersNbroken1 = clustersCount1;
+    clustersNbroken2 = clustersCount2;
+    clusterTree->Fill(); 
+
+  } 
+
 
 }
 
