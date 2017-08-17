@@ -168,6 +168,7 @@ process.out = cms.OutputModule("PoolOutputModule",
 process.a = cms.EDAnalyzer("PixDigisTest",
     Verbosity = cms.untracked.bool(False),
     phase1 = cms.untracked.bool(True),
+    includezeroadc = cms.untracked.bool(False),
     lumisection = cms.untracked.int32(restrictToLumisection),
 # sim in V7
 #    src = cms.InputTag("mix"),

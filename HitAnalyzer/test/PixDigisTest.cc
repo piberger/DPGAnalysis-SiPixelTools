@@ -197,6 +197,7 @@ private:
   std::map< std::pair<std::string, int>, int> clustersSplitByTwo;
   TTree* clusterTree;
   int restrictToLumisection;
+  bool includeZeroAdc;
 };
 
 //
@@ -220,7 +221,7 @@ PixDigisTest::PixDigisTest(const edm::ParameterSet& iConfig) {
 #endif 
   phase1_ =  iConfig.getUntrackedParameter<bool>( "phase1",false);
   restrictToLumisection = iConfig.getUntrackedParameter<int>("lumisection", -1);
-  
+  includeZeroAdc = iConfig.getUntrackedParameter<bool>("includezeroadc", false); 
   cout<<" Construct PixDigisTest "<<endl;
 }
 
@@ -783,8 +784,9 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
        digiTestDigiRow[digiTestCounter] = row;
        digiTestDigiAdc[digiTestCounter] = adc;
        digiTestCounter++;
-       
-       if (adc > 0) {
+      
+       // count ADC=0 pixels or not? 
+       if (adc > 0 || includeZeroAdc) {
            pixels.push_back(std::make_pair(col, row));
        }
 
