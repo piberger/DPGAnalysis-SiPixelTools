@@ -195,6 +195,8 @@ private:
   std::map< std::pair<std::string, int>, int> clustersComplete;
   std::map< std::pair<std::string, int>, int> clustersSplitByOne;
   std::map< std::pair<std::string, int>, int> clustersSplitByTwo;
+  std::map< std::string, int> moduleNhits;
+  std::map< std::string, int> moduleNclusters;
   TTree* clusterTree;
   int restrictToLumisection;
   bool includeZeroAdc;
@@ -1077,13 +1079,13 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
 
                             if (specificClusterShapeFound) {
                                 
-				std::pair<std::string, int> moduleClusterIdentifier = std::make_pair(fullModuleName, checkClusterSize);
-				if (clustersSplitByTwo.find(moduleClusterIdentifier) == clustersSplitByTwo.end()) {
-				    clustersSplitByTwo[moduleClusterIdentifier] = 1;
-				} else {
-				    clustersSplitByTwo[moduleClusterIdentifier]++;
-				}
-				break;                           
+                                std::pair<std::string, int> moduleClusterIdentifier = std::make_pair(fullModuleName, checkClusterSize);
+                                if (clustersSplitByTwo.find(moduleClusterIdentifier) == clustersSplitByTwo.end()) {
+                                    clustersSplitByTwo[moduleClusterIdentifier] = 1;
+                                } else {
+                                    clustersSplitByTwo[moduleClusterIdentifier]++;
+                                }
+                                break;                           
                                 //std::cout << "size " << checkClusterSize << " ---- found ---- k = " << k << "\n";
                                 //for (int j =0;j<relativeClusterShape.size();j++) {
                                 //    std::cout << relativeClusterShape[j].first << "," << relativeClusterShape[j].second << " ";
@@ -1125,19 +1127,34 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
 
                             if (specificClusterShapeFound) {
 
-				std::pair<std::string, int> moduleClusterIdentifier = std::make_pair(fullModuleName, checkClusterSize);
-				if (clustersSplitByOne.find(moduleClusterIdentifier) == clustersSplitByOne.end()) {
-				    clustersSplitByOne[moduleClusterIdentifier] = 1;
-				} else {
-				    clustersSplitByOne[moduleClusterIdentifier]++;
-				}
-				break;                           
+                                std::pair<std::string, int> moduleClusterIdentifier = std::make_pair(fullModuleName, checkClusterSize);
+                                if (clustersSplitByOne.find(moduleClusterIdentifier) == clustersSplitByOne.end()) {
+                                    clustersSplitByOne[moduleClusterIdentifier] = 1;
+                                } else {
+                                    clustersSplitByOne[moduleClusterIdentifier]++;
+                                }
+                                break;                           
                             }
 
                         }
                     }
+
+                } // done looping over the specific cluster lengths to check
+
+                // measure pixel rates
+                if (moduleNhits.find(fullModuleName) == moduleNhits.end()) {
+                    // add number of pixels in this cluster
+                    moduleNhits[fullModuleName] = relativeClusterShape.size(); 
+                } else {
+                    moduleNhits[fullModuleName] += relativeClusterShape.size(); 
                 }
 
+                // measure cluster rates
+                if (moduleNclusters.find(fullModuleName) == moduleNclusters.end()) {
+                    moduleNclusters[fullModuleName] = 1;
+                } else {
+                    moduleNclusters[fullModuleName]++;
+                }
             } // done looping over all clusters
        } 
 
@@ -1313,7 +1330,7 @@ void PixDigisTest::endJob(){
   hpdetMap3->Scale(norm);
   hpdetMap4->Scale(norm);
 
-  // print cluster shape dictionary
+  // print cluster shape dictionary and fill tree
   for ( std::map< std::pair<std::string, int>, int>::iterator clusterDict_it = clustersComplete.begin(); clusterDict_it!=clustersComplete.end(); ++clusterDict_it) {
       std::pair<std::string, int> moduleClusterIdentifier = clusterDict_it->first;
       int clustersCount = clusterDict_it->second;
@@ -1327,17 +1344,26 @@ void PixDigisTest::endJob(){
       }
       cout << "module " << moduleClusterIdentifier.first << " size " << moduleClusterIdentifier.second << " count " << clustersCount << " " << clustersCount1 << " " << clustersCount2 << "\n";
 
-    // fill tree
-    strncpy(clustersModuleName, moduleClusterIdentifier.first.c_str(), 36);
-    clustersSizeBranch = moduleClusterIdentifier.second;
-    clustersNcomplete = clustersCount;
-    clustersNbroken1 = clustersCount1;
-    clustersNbroken2 = clustersCount2;
-    clusterTree->Fill(); 
+      // fill tree
+      strncpy(clustersModuleName, moduleClusterIdentifier.first.c_str(), 36);
+      clustersSizeBranch = moduleClusterIdentifier.second;
+      clustersNcomplete = clustersCount;
+      clustersNbroken1 = clustersCount1;
+      clustersNbroken2 = clustersCount2;
+      clusterTree->Fill(); 
 
   } 
 
+  for ( std::map< std::string, int>::iterator it = moduleNclusters.begin(); it!=moduleNclusters.end(); ++it) {
+    double rate = it->second / (count0 * 2.5e-2 * 16 * 0.656);
+    cout << "module " << it->first << ": #clusters = " << it->second << " -> " << rate << "\n";
+  }
 
+
+  for ( std::map< std::string, int>::iterator it = moduleNhits.begin(); it!=moduleNhits.end(); ++it) {
+    double rate = it->second / (count0 * 2.5e-2 * 16 * 0.656);
+    cout << "module " << it->first << ": #digis = " << it->second << " -> " << rate << "\n";
+  }
 }
 
 //define this as a plug-in

@@ -3,6 +3,11 @@ import glob
 import array
 import math
 
+# all: number of straight long clustersalong rows  of size min to max, complete + broken1 + broken2
+# broken1: number of such broken clusters with 1 pixel missing
+# ratio1: broken1/all
+p76data = {'all': {}, 'broken1': {}, 'broken2': {}, 'ratio1': {}, 'ratio2': {}}
+
 def set_tdr_style():
         tdrStyle = ROOT.TStyle("tdrStyle", "Style for P-TDR")
 
@@ -182,6 +187,8 @@ def get_lumisection_data(fileName, options):
     clusterSplitType = options['split'] if 'split' in options else 2
     clusterSelectionLambda = options['selection'] if 'selection' in options else lambda x: x.size == 7 and '_LYR1_' in x.module 
 
+    global p76data
+    
     numEntries = tree.GetEntries()
     for i in range(numEntries):
         tree.GetEntry(i)
@@ -195,7 +202,25 @@ def get_lumisection_data(fileName, options):
             else:
                 print "bad value for split type:", clusterSplitType
                 exit()
-
+        #p76 test
+        moduleName = tree.module.split('\0')[0]
+        if (tree.size == 7):
+            if (moduleName not in p76data['all']):
+                p76data['all'][moduleName] = []
+                p76data['broken1'][moduleName] = []
+                p76data['broken2'][moduleName] = []
+                p76data['ratio1'][moduleName] = []
+                p76data['ratio2'][moduleName] = []
+            p76data['ratio1'][moduleName].append(tree.broken1*1.0/(tree.complete+tree.broken1+tree.broken2))
+            p76data['ratio2'][moduleName].append(tree.broken2*1.0/(tree.complete+tree.broken1+tree.broken2))
+            p76data['broken1'][moduleName].append(tree.broken1)
+            p76data['broken2'][moduleName].append(tree.broken2)
+            p76data['all'][moduleName].append(tree.broken1+tree.complete+tree.broken2)
+    #print "TEST p76:"
+    #for module,p76dataPoint in p76data.items():
+    #    print module,' ',sum(p76dataPoint)/(1.0*len(p76dataPoint)) if len(p76dataPoint) > 0 else 0
+    #raw_input()
+    
     nClustersTotal = nClustersComplete + nClustersBroken
     fraction = 1.0 * nClustersBroken / nClustersTotal if nClustersTotal > 0 else -1 
     error = math.sqrt(fraction*(1.0-fraction)/(1.0*nClustersTotal)) if nClustersTotal > 0 else 0
@@ -208,6 +233,25 @@ def get_all_points(options):
     clusterTreeFileNames = glob.glob(globMask)
     for clusterTreeFileName in clusterTreeFileNames:
         result.append(get_lumisection_data(clusterTreeFileName, options))
+
+    print "TEST p76:"
+    
+    with open('p76_permodule_%d_all.txt'%runNumber, 'w') as outputFile:
+        for module,p76dataPoint in p76data['all'].items():
+            outputFile.write('%s %d\n'%(module,sum(p76dataPoint)))
+    with open('p76_permodule_%d_broken1.txt'%runNumber, 'w') as outputFile:
+        for module,p76dataPoint in p76data['broken1'].items():
+            outputFile.write('%s %d\n'%(module,sum(p76dataPoint)))
+    with open('p76_permodule_%d_broken2.txt'%runNumber, 'w') as outputFile:
+        for module,p76dataPoint in p76data['broken2'].items():
+            outputFile.write('%s %d\n'%(module,sum(p76dataPoint)))
+    with open('p76_permodule_%d_ratio1.txt'%runNumber, 'w') as outputFile:
+        for module,p76dataPoint in p76data['ratio1'].items():
+            outputFile.write('%s %f\n'%(module,sum(p76dataPoint)/(1.0*len(p76dataPoint)) if len(p76dataPoint) > 0 else 0))
+    with open('p75_permodule_%d_ratio2.txt'%runNumber, 'w') as outputFile:
+        for module,p76dataPoint in p76data['ratio2'].items():
+            outputFile.write('%s %f\n'%(module,sum(p76dataPoint)/(1.0*len(p76dataPoint)) if len(p76dataPoint) > 0 else 0))
+
     return result
 
 def make_graph(options):
@@ -217,8 +261,16 @@ def make_graph(options):
     if 'limitpoints' in options and len(graphPointsList) > options['limitpoints']:
         graphPointsList = graphPointsList[0:options['limitpoints']]
         print 'number of points limited to ', options['limitpoints']
-    
-    print graphPointsList
+  
+    try:
+        selectedPoints = [x for x in graphPointsList if x[0] > 0.5 and x[3]<0.5]
+        mean = sum([x[1] for x in selectedPoints]) / len(selectedPoints) if len(selectedPoints) > 0 else 0
+    except:
+        mean = -1 
+    print '-'*80,'\n','RUN:',options['run'],':',mean,'\n','-'*80
+    #for p in graphPointsList:
+    #    print ('%1.3f'%p[0]).ljust(7),('%1.3f'%p[1]).ljust(7),('%1.3f'%p[3]).ljust(10) 
+    #print graphPointsList
 
     rescaleX = options['scalex'] if 'scalex' in options else 1.0
 
@@ -383,7 +435,7 @@ graphOptions = [
 {'run': 300806, 'name': '300806 (2556b)', 'scalex': 1000.0/2542, 'color': ROOT.kCyan+1, 'style': 22, 'size': 1.5, 'limitpoints': 50},
 {'run': 300811, 'name': '300811 (2556b)', 'scalex': 1000.0/2542, 'color': ROOT.kSpring+5, 'style': 21, 'size': 1.5, 'limitpoints': 50},
 ]
-make_tgraph(graphOptions, "cluster_splitting_p75_run301417_nbunchesrescaled_v1.png", xrange=[0.35,0.65])
+#make_tgraph(graphOptions, "cluster_splitting_p75_run301417_nbunchesrescaled_v1.png", xrange=[0.35,0.65])
 
 
 graphOptions = [
@@ -397,6 +449,61 @@ graphOptions = [
 #make_tgraph(graphOptions, "cluster_splitting_p76_run301417.png", xrange=[0.5,1.2])
 
 
+graphOptions = [
+{'run': 299593, 'name': '299593 (2556b 25ns)', 'color': ROOT.kBlack, 'style': 21, 'limitpoints': 500, 'yrange': [0, 35], 'xtitle': 'lumi [10^{34} cm^{-2}s^{-1}]', 'ytitle': 'cluster splitting p(7->5) [%]'},
+{'run': 299614, 'name': '299614 (1248b 50ns)', 'color': ROOT.kGreen+2, 'style': 22, 'size': 1.8, 'limitpoints': 50}, 
+{'run': 299616, 'name': '299616 (1248b 50ns)', 'color': ROOT.kBlue+2, 'style': 23, 'size': 1.8, 'limitpoints': 50} ,
+{'run': 299617, 'name': '299617 (1248b 50ns)', 'color': ROOT.kOrange+2, 'style': 34, 'size': 1.8, 'limitpoints': 50}, 
+]
+#make_tgraph(graphOptions, "cluster_splitting_p75_25ns_50ns.png", xrange=[0.0,1.5])
 
 
+graphOptions = [
+{'run': 301627, 'color': ROOT.kBlack, 'style': 21, 'limitpoints': 200, 'yrange': [0, 35], 'xtitle': 'lumi [10^{34} cm^{-2}s^{-1}]', 'ytitle': 'cluster splitting p(7->5) [%]'},
+{'run': 301664, 'color': ROOT.kBlue+2, 'style': 22, 'size': 1.8, 'limitpoints': 200}, 
+{'run': 301694, 'color': ROOT.kOrange+2, 'style': 34, 'size': 1.8, 'limitpoints': 200}, 
+]
+#make_tgraph(graphOptions, "cluster_splitting_p75301627__301664_301694.png", xrange=[0.0,1.5])
+
+
+graphOptions = [
+{'run': 300233, 'name': '300233 Vdd=10', 'color': ROOT.kRed+2, 'style': 22, 'size': 1.8, 'limitpoints': 200, 'yrange': [0, 35], 'xtitle': 'lumi [10^{34} cm^{-2}s^{-1}]', 'ytitle': 'cluster splitting p(7->5) [%]'},
+{'run': 300234, 'name': '300234 Vdd=6', 'color': ROOT.kBlue+2, 'style': 23, 'size': 1.8, 'limitpoints': 200}, 
+{'run': 300806, 'name': '300806 Vdd=6', 'color': ROOT.kGreen+2, 'style': 34, 'limitpoints': 50},
+{'run': 300811, 'name': '300811 Vdd=6', 'color': ROOT.kOrange+2, 'style': 29, 'size': 2.0, 'limitpoints': 50},
+]
+#make_tgraph(graphOptions, "cluster_splitting_p75_300233vdig10_300234vdig6_300806vdig6_300811vdig6.png", xrange=[1.3,1.7])
+
+graphOptions = [
+{'run': 300233, 'split': 1, 'name': '300233 Vdd=10', 'color': ROOT.kRed+2, 'style': 22, 'size': 1.8, 'limitpoints': 200, 'yrange': [0, 35], 'xtitle': 'lumi [10^{34} cm^{-2}s^{-1}]', 'ytitle': 'cluster splitting p(7->6) [%]'},
+{'run': 300234, 'split': 1, 'name': '300234 Vdd=6', 'color': ROOT.kBlue+2, 'style': 23, 'size': 1.8, 'limitpoints': 200}, 
+{'run': 300806, 'split': 1, 'name': '300806 Vdd=6', 'color': ROOT.kGreen+2, 'style': 34, 'limitpoints': 50},
+{'run': 300811, 'split': 1, 'name': '300811 Vdd=6', 'color': ROOT.kOrange+2, 'style': 29, 'size': 2.0, 'limitpoints': 50},
+]
+#make_tgraph(graphOptions, "cluster_splitting_p76_300233vdig10_300234vdig6_300806vdig6_300811vdig6.png", xrange=[1.3,1.7])
+
+
+
+graphOptions = [
+{'run': 302019, 'color': ROOT.kRed+2, 'style': 22, 'size': 1.8, 'limitpoints': 200, 'yrange': [0, 35], 'xtitle': 'lumi [10^{34} cm^{-2}s^{-1}]', 'ytitle': 'cluster splitting p(7->5) [%]'},
+{'run': 302026, 'color': ROOT.kBlue+2, 'style': 23, 'size': 1.8, 'limitpoints': 200}, 
+{'run': 301298, 'color': ROOT.kGreen+2, 'style': 34, 'limitpoints': 50},
+]
+#make_tgraph(graphOptions, "cluster_splitting_p75_302019_302026_301298.png", xrange=[0.85,1.0])
+
+
+graphOptions = [
+{'run': 302228, 'name': '302228 (1356b)', 'color': ROOT.kRed+2, 'style': 22, 'size': 1.8, 'limitpoints': 200, 'yrange': [0, 35], 'xtitle': 'lumi [10^{34} cm^{-2}s^{-1}]', 'ytitle': 'cluster splitting p(7->5) [%]'},
+{'run': 302262, 'name': '302262 (1550b)', 'color': ROOT.kBlue+2, 'style': 23, 'size': 1.8, 'limitpoints': 200}, 
+{'run': 302277, 'name': '302277 (1164b)', 'color': ROOT.kGreen+2, 'style': 34, 'limitpoints': 200},
+]
+#make_tgraph(graphOptions, "cluster_splitting_p75_302228_302262_302277.png", xrange=[0.5,0.95])
+
+graphOptions = [
+{'run': 302228, 'name': '302228 (1356b)', 'scalex': 1000.0/1344, 'color': ROOT.kRed+2, 'style': 22, 'size': 1.8, 'limitpoints': 200, 'yrange': [0, 10], 'xtitle': 'lumi/#colliding_bunches [10^{31} cm^{-2}s^{-1}]', 'ytitle': 'cluster splitting p(7->5) [%]'},
+{'run': 302262, 'name': '302262 (1550b)', 'scalex': 1000.0/1538, 'color': ROOT.kBlue+2, 'style': 23, 'size': 1.8, 'limitpoints': 200}, 
+{'run': 302277, 'name': '302277 (1164b)', 'scalex': 1000.0/1152, 'color': ROOT.kGreen+2, 'style': 34, 'limitpoints': 200},
+]
+# 'scalex': 1000.0/1919,
+#make_tgraph(graphOptions, "cluster_splitting_p75_302228_302262_302277_rescaled.png", xrange=[0.4,0.7])
 
