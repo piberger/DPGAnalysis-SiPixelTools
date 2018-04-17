@@ -46,7 +46,7 @@ process.MessageLogger = cms.Service("MessageLogger",
 #process.MessageLogger.cerr.threshold = 'Debug'
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(1000)
+    input = cms.untracked.int32(-1)
 )
 
 process.TFileService = cms.Service("TFileService",
@@ -60,42 +60,28 @@ myfilelist.extend([
 process.source = cms.Source("PoolSource",
 # fileNames =  myfilelist
     fileNames = cms.untracked.vstring(                          
-# 2017
 
-#"/store/express/Run2017C/ExpressPhysics/FEVT/Express-v2/000/300/233/00000/062F0768-5676-E711-B303-02163E014626.root",
-"/store/express/Run2017C/ExpressPhysics/FEVT/Express-v2/000/300/226/00000/02BBC9F3-2F76-E711-B29A-02163E019C08.root",
-#"/store/express/Run2017C/ExpressPhysics/FEVT/Express-v1/000/300/155/00000/0052B596-8F75-E711-B704-02163E011C13.root",
-
-#"/store/express/Run2017C/ExpressPhysics/FEVT/Express-v1/000/300/122/00000/001BAA8B-BA74-E711-9564-02163E01A3CB.root",
-#"/store/express/Run2017C/ExpressPhysics/FEVT/Express-v1/000/300/088/00000/003E6DDF-4974-E711-A723-02163E0133C2.root",
-
-# "/store/express/Run2017C/ExpressPhysics/FEVT/Express-v1/000/299/479/00000/000AE42E-696D-E711-AC50-02163E0142C8.root",
-
-# "/store/express/Run2017A/ExpressPhysics/FEVT/Express-v2/000/296/702/00000/FED4EA05-D64F-E711-82F9-02163E012A6B.root",
-# "/store/express/Run2017A/ExpressPhysics/FEVT/Express-v2/000/296/664/00000/00F38C8D-A54F-E711-A312-02163E01472F.root",
-# "/store/express/Run2017A/ExpressPhysics/FEVT/Express-v2/000/296/643/00000/08070285-5E4F-E711-BB56-02163E01476C.root",
-
-
-# "/store/express/Run2017A/ExpressPhysics/FEVT/Express-v1/000/295/209/00000/005E61C9-D341-E711-BEAE-02163E019C9F.root",
-
-# "/store/express/Run2017A/ExpressPhysics/FEVT/Express-v1/000/295/128/00000/2E861F6A-1F41-E711-BEEC-02163E01A32B.root",
-
-# "/store/express/Run2017A/ExpressPhysics/FEVT/Express-v1/000/294/960/00000/4497A881-1C40-E711-BBC7-02163E019BA9.root",
-
-# "/store/express/Run2017A/ExpressPhysics/FEVT/Express-v1/000/294/929/00000/000E8FD5-1D40-E711-80C9-02163E01467E.root",
-
-# "/store/express/Run2017A/ExpressPhysics/FEVT/Express-v1/000/294/927/00000/A43930F5-CE3F-E711-93E1-02163E019C66.root",
-# "/store/express/Run2017A/ExpressPhysics/FEVT/Express-v1/000/294/927/00000/FE44FBE2-CE3F-E711-B011-02163E019BD5.root",
-
-
-# data 2016
-#"/store/data/Run2016A/ZeroBias1/RAW/v1/000/271/056/00000/0097F016-0C09-E611-AA06-02163E011AE6.root",
-
-#"/store/data/Run2016F/ZeroBias/ALCARECO/TkAlMinBias-PromptReco-v1/000/278/509/00000/18648660-5460-E611-9CDB-FA163ED6B29A.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/105/00000/62D40E91-CB32-E811-8231-FA163E2D0F8B.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/105/00000/38E3030F-CE32-E811-A369-FA163EAE8BE0.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/105/00000/980DD043-CF32-E811-9A2C-FA163E010862.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/105/00000/C4763265-CF32-E811-9D1C-FA163E6E568E.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/105/00000/0C817D37-CE32-E811-ADB6-FA163E5CE18A.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/105/00000/80D62C1A-D232-E811-9890-FA163E045E3F.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/105/00000/944600B7-D332-E811-BB49-FA163E3FA786.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/105/00000/92AD4812-D532-E811-BE0B-FA163E967705.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/105/00000/FC076D0A-D632-E811-B2A4-FA163EE782AD.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/105/00000/86E740C4-D432-E811-9B2E-FA163E5CE18A.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/105/00000/7A1516F8-D632-E811-9FFD-FA163EE92B1D.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/105/00000/3C5A8030-D832-E811-94FB-FA163EE92B1D.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/105/00000/56825D7D-DA32-E811-A6FC-02163E019FF9.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/105/00000/CC7E7385-DB32-E811-95A3-FA163E9A30FF.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/105/00000/DC065D53-DC32-E811-97F9-02163E01A01D.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/105/00000/0CD8BFCA-DD32-E811-9563-FA163E014056.root",
 
    )
 
 )
+
 
 
 # for dump files 
@@ -133,13 +119,13 @@ process.d = cms.EDAnalyzer("SiPixelRawDump",
 
     CheckPixelOrder = cms.untracked.bool(False),
 # 0 - nothing, 1 - error , 2- data, 3-headers, 4-hex
-    Verbosity = cms.untracked.int32(1),
+    Verbosity = cms.untracked.int32(0),
 # threshold, print fed/channel num of errors if tot_errors > events * PrintThreshold, default 0,001 
-    PrintThreshold = cms.untracked.double(0.01)
+    PrintThreshold = cms.untracked.double(0.001)
 )
 
-process.p = cms.Path(process.hltfilter*process.d)
-#process.p = cms.Path(process.d)
+#process.p = cms.Path(process.hltfilter*process.d)
+process.p = cms.Path(process.d)
 
 # process.ep = cms.EndPath(process.out)
 

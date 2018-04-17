@@ -66,7 +66,7 @@
 #include "DataFormats/SiPixelCluster/interface/SiPixelCluster.h"
 
 #include "FWCore/Framework/interface/ESHandle.h"
-#include "Geometry/CommonDetUnit/interface/GeomDetUnit.h"
+#include "Geometry/CommonDetUnit/interface/GeomDet.h"
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
 #include "Geometry/CommonTopologies/interface/Topology.h"
@@ -2508,7 +2508,7 @@ void PxlBPix::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup){
       cout << ", dxyv " << iTrack->dxy(vtxP)*1E4 << " um";
       cout << ", dzv " << iTrack->dz(vtxP)*1E1 << " mm";
       cout << setprecision(4);
-      cout << ", hits " << hp.numberOfHits(HitPattern::TRACK_HITS);/// assuming HitCategory =TRACK_HITS = 0
+      cout << ", hits " << hp.numberOfAllHits(HitPattern::TRACK_HITS);/// assuming HitCategory =TRACK_HITS = 0
       cout << ", valid " << hp.numberOfValidTrackerHits();
       cout << endl;
     }
