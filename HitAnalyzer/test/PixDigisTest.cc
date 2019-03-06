@@ -99,6 +99,7 @@
 #define L1
 #define HLT
 
+#include "DataFormats/TCDS/interface/TCDSRecord.h"
 
 using namespace std;
 
@@ -128,6 +129,7 @@ private:
 #ifdef USE_SIM_LINKS
   edm::EDGetTokenT< edm::DetSetVector<PixelDigiSimLink> > tPixelDigiSimLink;
 #endif
+  edm::EDGetTokenT<TCDSRecord> tcdsrecord_; 
   float count0, count1, count2, count3;
 
 #ifdef HISTOS
@@ -153,12 +155,13 @@ private:
   TH1F *hcols1big, *hrows1big, *heloss1bigx, *heloss1bigy;
   TH1F *hsimlinks, *hfract;
   TH1F *hblade1, *hblade2, *hblade3;
-
+  TH1F *hClusterSplit1Row1, *hClusterSplit2Row1, *hClusterSplit1Col1, *hClusterSplit2Col1;
   //TH2F *htest, *htest2;
   TH2F *hpdetMap4,*hpdetMap3,*hpdetMap2,*hpdetMap1; 
   TH2F *hdetMap4,*hdetMap3,*hdetMap2,*hdetMap1, 
     *hpixMap1, *hpixMap2, *hpixMap3,*hpixMap4;
-
+  TH2F *hClusterSplit1Pos1;
+  TH2F *hClusterSplit2Pos1;
 
   TH2F *hpdetMaps4,*hpdetMaps3,*hpdetMaps2,*hpdetMaps1; 
 
@@ -166,8 +169,11 @@ private:
   TH2F *hxy, *hphiz1, *hphiz2, *hphiz3, *hphiz4; // bpix 
   TH2F *hzr, *hxy11, *hxy12, *hxy21, *hxy22, *hxy31, *hxy32;  // fpix 
 
-  TH1F *hevent, *hlumi, *horbit, *hbx0, *hlumi0, *hlumi1,*hbx1,*hbx2,*hbx3,*hbx4,*hbx5,*hbx6;
+  TH1F *hevent, *hlumi, *horbit, *hbx0, *hlumi0, *hlumi1,*hbx1,*hbx2,*hbx3,*hbx4,*hbx5,*hbx6,*hbx;
   TH1F *hdets, *hdigis, *hdigis0, *hdigis1, *hdigis2,*hdigis3,*hdigis4,*hdigis5; 
+
+  TH1F *hNdbCellsLay1;
+  TH1F *adcLay1Big, *adcLay1Small;
 
   TProfile *hadc1ls,*hadc2ls,*hadc3ls,*hadc4ls,*hadc0ls; 
   TProfile *hadc1bx,*hadc2bx,*hadc3bx,*hadc4bx,*hadc0bx; 
@@ -189,17 +195,56 @@ private:
   // custom clustering
   char clustersModuleName[37];
   int clustersSizeBranch;
+  int clustersBxBranch;
   int clustersNcomplete;
   int clustersNbroken1;
   int clustersNbroken2;
+  
+  // cluster tree -> event info
+  unsigned int clusterTree_bx;
+  unsigned int clusterTree_event;
+  unsigned int clusterTree_lumiblock;
+  unsigned int clusterTree_orbit;
+  unsigned int clusterTree_orbitOfLastBgo14;
+  int clusterTree_tres;
+
+
+  // cluster tree -> module position
+  int clusterTree_shell;
+  int clusterTree_sector;
+  int clusterTree_ladder;
+  int clusterTree_layer;
+  int clusterTree_module;
+  unsigned int clusterTree_layerC;
+  unsigned int clusterTree_ladderC;
+  unsigned int clusterTree_zindex;
+  unsigned int clusterTree_pos_x;
+  unsigned int clusterTree_pos_y;
+
+  // cluster tree -> clusters
+  int clusterTree_size;
+  int clusterTree_x[480];
+  int clusterTree_y[480];
+  int clusterTree_adc[480];
+
+  // count clusters for each module < <module, size>, count>
   std::map< std::pair<std::string, int>, int> clustersComplete;
   std::map< std::pair<std::string, int>, int> clustersSplitByOne;
   std::map< std::pair<std::string, int>, int> clustersSplitByTwo;
-  std::map< std::string, int> moduleNhits;
+
+  // count clusters per BX: < <bx, size>, count>
+  std::map< std::pair<int, int>, int> clustersBXComplete;
+  std::map< std::pair<int, int>, int> clustersBXSplitByOne;
+  std::map< std::pair<int, int>, int> clustersBXSplitByTwo;
+  
+std::map< std::string, int> moduleNhits;
   std::map< std::string, int> moduleNclusters;
   TTree* clusterTree;
   int restrictToLumisection;
   bool includeZeroAdc;
+
+
+//  std::vector< std::vector<int> > doubleColumnHitsL1;
 };
 
 //
@@ -223,7 +268,9 @@ PixDigisTest::PixDigisTest(const edm::ParameterSet& iConfig) {
 #endif 
   phase1_ =  iConfig.getUntrackedParameter<bool>( "phase1",false);
   restrictToLumisection = iConfig.getUntrackedParameter<int>("lumisection", -1);
-  includeZeroAdc = iConfig.getUntrackedParameter<bool>("includezeroadc", false); 
+  includeZeroAdc = iConfig.getUntrackedParameter<bool>("includezeroadc", true);
+
+  tcdsrecord_ = consumes<TCDSRecord>(edm::InputTag("tcdsRawToDigiProducer","tcdsRecord"));
   cout<<" Construct PixDigisTest "<<endl;
 }
 
@@ -256,13 +303,40 @@ void PixDigisTest::beginJob() {
    // put here whatever you want to do at the beginning of the job
     //hFile = new TFile ( "digis_tree.root", "RECREATE" );
    
-    clusterTree = fs->make<TTree>("tree","digis");
-    clusterTree->Branch("module",(void*)clustersModuleName,"string/C",36);
-    clusterTree->Branch("size",&clustersSizeBranch,"size/I");
-    clusterTree->Branch("complete",&clustersNcomplete,"complete/I");
-    clusterTree->Branch("broken1",&clustersNbroken1,"broken1/I");
-    clusterTree->Branch("broken2",&clustersNbroken2,"broken2/I");
+    clusterTree = fs->make<TTree>("tree","clusters");
+    //clusterTree->Branch("module",(void*)clustersModuleName,"string/C",36);
+    //clusterTree->Branch("size",&clustersSizeBranch,"size/I");
+    //clusterTree->Branch("complete",&clustersNcomplete,"complete/I");
+    //clusterTree->Branch("broken1",&clustersNbroken1,"broken1/I");
+    //clusterTree->Branch("broken2",&clustersNbroken2,"broken2/I");
+    
+    // event information
+    clusterTree->Branch("bx", &clusterTree_bx, "bx/i");
+    clusterTree->Branch("event", &clusterTree_event, "bx/i");
+    clusterTree->Branch("lumiblock", &clusterTree_lumiblock, "lumiblock/i");
+    clusterTree->Branch("orbit", &clusterTree_orbit, "orbit/i");
+    clusterTree->Branch("orbitOfLastBgo14", &clusterTree_orbitOfLastBgo14, "orbitOfLastBgo14/i");
+    clusterTree->Branch("tres", &clusterTree_tres, "tres/I");
 
+    // module information
+    clusterTree->Branch("shell", &clusterTree_shell, "shell/I");
+    clusterTree->Branch("sector", &clusterTree_sector, "sector/I");
+    clusterTree->Branch("ladder", &clusterTree_ladder, "ladder/I");
+    clusterTree->Branch("layer", &clusterTree_layer, "layer/I");
+    clusterTree->Branch("module", &clusterTree_module, "module/I");
+    clusterTree->Branch("layerC", &clusterTree_layerC, "layerC/i");
+    clusterTree->Branch("ladderC", &clusterTree_ladderC, "ladderC/i");
+    clusterTree->Branch("zindex", &clusterTree_zindex, "zindex/i");
+    
+    // clusters
+    clusterTree->Branch("pos_x", &clusterTree_pos_x, "pos_x/i");
+    clusterTree->Branch("pos_y", &clusterTree_pos_y, "pos_y/i");
+    clusterTree->Branch("size", &clusterTree_size,"size/I");
+    
+    // pixels
+    clusterTree->Branch("x", clusterTree_x, "x[size]/i");
+    clusterTree->Branch("y", clusterTree_y, "y[size]/i");
+    clusterTree->Branch("adc", clusterTree_adc, "adc[size]/i");
 
     // < <module_name, cluster_length>, count >
 
@@ -378,6 +452,11 @@ void PixDigisTest::beginJob() {
 
     hsimlinks = fs->make<TH1F>("hsimlinks"," track ids",200,0.,200.);
     hfract = fs->make<TH1F>("hfract"," track rractions",100,0.,1.);
+
+    hClusterSplit1Row1 = fs->make<TH1F>("hClusterSplit1Row1","rows per bar det",200,0.,200.);
+    hClusterSplit2Row1 = fs->make<TH1F>("hClusterSplit2Row1","rows per bar det",200,0.,200.);
+    hClusterSplit1Col1 = fs->make<TH1F>("hClusterSplit1Col1","cols per bar det",450,0.,450.);
+    hClusterSplit2Col1 = fs->make<TH1F>("hClusterSplit2Col1","cols per bar det",450,0.,450.);
     //                                             mod      ladder
     hdetMap1 = fs->make<TH2F>("hdetMap1"," ",9,-4.5,4.5,13,-6.5,6.5);
     hdetMap1->SetOption("colz");
@@ -415,6 +494,10 @@ void PixDigisTest::beginJob() {
     hpdetMaps4 = fs->make<TH2F>("hpdetMaps4","  slected hits ",9,-4.5,4.5,65,-32.5,32.5);
     hpdetMaps4->SetOption("colz");
 
+    hClusterSplit1Pos1 = fs->make<TH2F>("hClusterSplit1Pos1"," ",416,0.,416.,160,0.,160.); 
+    hClusterSplit1Pos1->SetOption("colz");
+    hClusterSplit2Pos1 = fs->make<TH2F>("hClusterSplit2Pos1"," ",416,0.,416.,160,0.,160.); 
+    hClusterSplit2Pos1->SetOption("colz");
 
     //hpixMapNoise = fs->make<TH2F>("hpixMapNoise"," ",416,0.,416.,160,0.,160.);
     //hpixMapNoise->SetOption("colz");
@@ -437,6 +520,11 @@ void PixDigisTest::beginJob() {
   hbx2    = fs->make<TH1F>("hbx2",   "bx",   4000,0,4000.);  
   hbx1    = fs->make<TH1F>("hbx1",   "bx",   4000,0,4000.);  
   hbx0    = fs->make<TH1F>("hbx0",   "bx",   4000,0,4000.);  
+  hbx    = fs->make<TH1F>("hbx",   "bx",   4000,0,4000.);  
+  
+  hNdbCellsLay1  = fs->make<TH1F>("hNdbCellsLay1", "n DB cells per DC per BX Layer 1", 50, 0, 50.); 
+  adcLay1Big  = fs->make<TH1F>("adcLay1Big", "ADC > 36 frames per DC, Layer 1", 256, 0, 256.0); 
+  adcLay1Small  = fs->make<TH1F>("adcLay1Small", "ADC <= 36 frames per DC, Layer 1", 256, 0, 256.0); 
 
   hdets  = fs->make<TH1F>( "hdets",  "Dets with hits", 2000, -0.5, 1999.5);
   const int sizeH=20000;
@@ -478,6 +566,13 @@ void PixDigisTest::beginJob() {
 
 #endif
 
+    // count number of used buffer cells per BX per DC in layer 1 
+    // initialize
+    //for (int iDC=0;iDC<16*26;iDC++) {
+    //    std::vector<int> emptyDC;
+    //    doubleColumnHitsL1.push_back(emptyDC);
+    //}
+    //cout << "n DC:" << doubleColumnHitsL1.size() << std::endl;
 }
 
 // ------------ method called to produce the data  ------------
@@ -498,8 +593,24 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
   int lumiBlock = iEvent.luminosityBlock();
   int bx        = iEvent.bunchCrossing();
   int orbit     = iEvent.orbitNumber();
+  edm::Handle<TCDSRecord> tcdsData; 
+  iEvent.getByToken( tcdsrecord_, tcdsData ); 
+  if( tcdsData.isValid() ) {
+      clusterTree_orbitOfLastBgo14 = tcdsData->getOrbitOfLastBgo(14);
+      clusterTree_tres = (orbit - clusterTree_orbitOfLastBgo14)*3564 + (bx - 3000);// always sent in BX 3000 
+  } else {
+      clusterTree_orbitOfLastBgo14 = 0;
+      clusterTree_tres = -1;
+  }
 
+  //cout << "event " << event << std::endl; 
   digiTestLS = lumiBlock;
+
+  // fill tree
+  clusterTree_lumiblock = lumiBlock;
+  clusterTree_event     = event;
+  clusterTree_bx        = bx;
+  clusterTree_orbit     = orbit;
 
   hbx0->Fill(float(bx));
   hlumi0->Fill(float(lumiBlock));
@@ -596,6 +707,19 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
     if(detType!=1) continue; // look only at tracker
     ++numberOfDetUnits;
     count1++; // count det untis
+
+    //for (int iDC=0;iDC<16*26;iDC++) {
+    //    doubleColumnHitsL1.clear();
+    //}
+    
+    // count number of used buffer cells per BX per DC in layer 1 
+    // initialize
+    std::vector< std::vector< std::pair< std::pair<int,int>, int> > > doubleColumnHitsL1;
+    doubleColumnHitsL1.resize(16*26);
+    for(std::vector < std::vector < std::pair< std::pair<int,int>, int>  > >::iterator it
+                    =doubleColumnHitsL1.begin();it!=doubleColumnHitsL1.end();++it) {
+       it->reserve(100);
+    }
 
     // Get the geom-detector 
     const PixelGeomDetUnit * theGeomDet = 
@@ -766,11 +890,23 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
     digiTestNdigis = DSViter->data.size(); 
 
     // simple col/row vector for custom clustering
-    std::vector < std::pair<int, int> > pixels;
+    std::vector < std::pair<std::pair<int, int>, int> > pixels;
 
-    // Look at digis now
+    // fill tree variables
+    clusterTree_shell    = shell;
+    clusterTree_sector   = sector;
+    clusterTree_ladder   = ladder;
+    clusterTree_layer    = layer;
+    clusterTree_module   = module;
+    clusterTree_layerC   = layerC;
+    clusterTree_ladderC  = ladderC;
+    clusterTree_zindex   = zindex;
+
+      // Look at digis now
     edm::DetSet<PixelDigi>::const_iterator  di;
     int digiTestCounter = 0;
+   
+
       for(di = DSViter->data.begin(); di != DSViter->data.end(); di++) {
 	//for(di = begin; di != end; di++) {
 	
@@ -788,9 +924,9 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
        digiTestCounter++;
       
        // count ADC=0 pixels or not? 
-       if (adc > 0 || includeZeroAdc) {
-           pixels.push_back(std::make_pair(col, row));
-       }
+       //if (adc > 0 || includeZeroAdc) {
+           pixels.push_back(std::make_pair(std::make_pair(col, row), adc));
+       //}
 
        // channel index needed to look for the simlink to simtracks
        int channel = PixelChannelIdentifier::pixelToChannel(row,col);
@@ -818,6 +954,27 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
 	   totalNumOfDigis1++;
 	   //htest2->Fill(float(module),float(adc));
 	   numOfDigisPerDet1++;
+        
+       // count number of used buffer cells per BX per DC in layer 1
+       if (row < 80) {
+         int dcIndex = int(col / 2);
+         int rocRow = row;
+         int rocCol = col % 52;
+         if (dcIndex < 16*26) {
+           doubleColumnHitsL1[dcIndex].push_back(std::make_pair(std::make_pair(rocCol, rocRow), adc));
+         } else {
+           cout << "invalid DC index:" << dcIndex << " col " << col << std::endl;
+         }
+       } else {
+         int dcIndex = 8*26 + int(col / 2);
+         int rocRow = 159 - row;
+         int rocCol = col % 52;
+         if (dcIndex < 16*26) {
+           doubleColumnHitsL1[dcIndex].push_back(std::make_pair(std::make_pair(rocCol, rocRow), adc));
+         } else {
+           cout << "invalid DC index:" << dcIndex << " col " << col << std::endl;
+         }
+       }
 
 //old 	   if(RectangularPixelTopology::isItBigPixelInX(row)) {
 //new	   if(topology.isItBigPixelInX(row)) { 
@@ -928,9 +1085,10 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
             // clustering
             //------------------------------------------------------------------------------------------------------------------------------
             //std::vector < std::pair<int, int> > pixels;
-            std::vector < std::pair<int, int> > pixelsNew;
-            std::vector < std::pair<int, int> > cluster;
-            std::vector < std::vector < std::pair<int, int> > > clusters;
+            std::vector < std::pair< std::pair<int, int>, int> > pixelsNew;
+            std::vector < std::pair< std::pair<int, int>, int> > cluster;
+            std::vector < std::vector < std::pair< std::pair<int, int>, int > > > clusters;
+            // TODO: define type alias for above stuff...
 
             // start with all hits from the event
 
@@ -950,7 +1108,7 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
                 newPixelsFound = 0;
                 for (int i=pixels.size()-1;i>=0;i--) {
                     for (unsigned int j=0;j<cluster.size();j++) {
-                        if (abs(pixels[i].first-cluster[j].first) < clusterRadius && abs(pixels[i].second-cluster[j].second) < clusterRadius) {
+                        if (abs(pixels[i].first.first-cluster[j].first.first) < clusterRadius && abs(pixels[i].first.second-cluster[j].first.second) < clusterRadius) {
                             // add to cluster
                             cluster.push_back(pixels[i]);
                             // remove from list
@@ -984,20 +1142,23 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
             //------------------------------------------------------------------------------------------------------------------------------
 
             // loop over all clusters
-            for (std::vector < std::vector < std::pair<int, int> > >::iterator itCluster = clusters.begin(); itCluster != clusters.end(); itCluster++) {
+            for (std::vector < std::vector <std::pair < std::pair<int, int>, int> > >::iterator itCluster = clusters.begin(); itCluster != clusters.end(); itCluster++) {
 
                 // find "bottom left" corner (=min row, min col)
                 int minRow = 600;
                 int minCol = 600;
-                for (std::vector < std::pair<int, int> >::iterator clusterPix=(*itCluster).begin(); clusterPix != (*itCluster).end(); clusterPix++) {
-                    if ((*clusterPix).first < minCol) minCol = (*clusterPix).first;
-                    if ((*clusterPix).second < minRow) minRow = (*clusterPix).second;
+                for (std::vector <std::pair< std::pair<int, int>, int> >::iterator clusterPix=(*itCluster).begin(); clusterPix != (*itCluster).end(); clusterPix++) {
+                    if ((*clusterPix).first.first < minCol) minCol = (*clusterPix).first.first;
+                    if ((*clusterPix).first.second < minRow) minRow = (*clusterPix).first.second;
                 }
+                
+                // align cluster with double columns
+                minCol -= minCol % 2;
 
                 // create relative cluster shape vector
-                std::vector < std::pair<int, int> > relativeClusterShape;
-                for (std::vector < std::pair<int, int> >::iterator clusterPix=(*itCluster).begin(); clusterPix != (*itCluster).end(); clusterPix++) {
-                    relativeClusterShape.push_back(std::make_pair((*clusterPix).first - minCol, (*clusterPix).second - minRow));
+                std::vector < std::pair< std::pair<int, int>, int> > relativeClusterShape;
+                for (std::vector < std::pair < std::pair<int, int>, int> >::iterator clusterPix=(*itCluster).begin(); clusterPix != (*itCluster).end(); clusterPix++) {
+                    relativeClusterShape.push_back(std::make_pair(std::make_pair((*clusterPix).first.first - minCol, (*clusterPix).first.second - minRow), (*clusterPix).second));
                 }
 
                 // sort it
@@ -1010,6 +1171,19 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
                 //} else {
                 //    clusterShapes[relativeClusterShape] = 1;
                 //}
+
+                // fill tree
+                if (relativeClusterShape.size() < 480) {
+                    clusterTree_size = relativeClusterShape.size();
+                    for (int iRelPix=0;iRelPix<clusterTree_size;iRelPix++) {
+                        clusterTree_x[iRelPix] = relativeClusterShape[iRelPix].first.first;
+                        clusterTree_y[iRelPix] = relativeClusterShape[iRelPix].first.second;
+                        clusterTree_adc[iRelPix] = relativeClusterShape[iRelPix].second;
+                        std::cout << ">" << clusterTree_x[iRelPix] << " " << clusterTree_y[iRelPix] << ",";
+                    }
+                    clusterTree->Fill();
+                }
+
 
                 // check if the cluster is broken
                 std::vector< std::pair< int,int >  > connectedPart;
@@ -1026,25 +1200,36 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
                         for (unsigned int p=0;p<relativeClusterShape.size();p++) {
 
                             // only use clusters aligned with ROC rows
-                            if (relativeClusterShape[p].second != 0) {
+                            if (relativeClusterShape[p].first.second != 0) {
                                 specificClusterShapeFound = false;
                                 break;
                             }
 
                             // all pixels there
-                            if (relativeClusterShape[p].first != (int)p) {
+                            if (relativeClusterShape[p].first.first != (int)p) {
                                 specificClusterShapeFound = false;
                                 break;
                             }
                         }
 
                         if (specificClusterShapeFound) {
+                            // count clusters vs. module ID
                             std::pair<std::string, int> moduleClusterIdentifier = std::make_pair(fullModuleName, checkClusterSize);
                             if (clustersComplete.find(moduleClusterIdentifier) == clustersComplete.end()) {
                                 clustersComplete[moduleClusterIdentifier] = 1;
                             } else {
                                 clustersComplete[moduleClusterIdentifier]++;
                             }
+                            // vs. BX only for layer 1!!!!
+                            if (subid == 1 && layer == 1) {
+                                std::pair<int, int> moduleClusterIdentifierBX = std::make_pair(bx, checkClusterSize);
+                                if (clustersBXComplete.find(moduleClusterIdentifierBX) == clustersBXComplete.end()) {
+                                    clustersBXComplete[moduleClusterIdentifierBX] = 1;
+                                } else {
+                                    clustersBXComplete[moduleClusterIdentifierBX]++;
+                                }
+                            }
+
                             break;                           
                         }
                     }
@@ -1060,16 +1245,16 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
                             for (unsigned int p=0;p<relativeClusterShape.size();p++) {
 
                                 // only use clusters aligned with ROC rows
-                                if (relativeClusterShape[p].second != 0) {
+                                if (relativeClusterShape[p].first.second != 0) {
                                     specificClusterShapeFound = false;
                                     break;
                                 }
 
                                 // in left part of cluster
-                                if ((p < k + 1) && relativeClusterShape[p].first == (int)p) {
+                                if ((p < k + 1) && relativeClusterShape[p].first.first == (int)p) {
                                     // everything fine
                                 // in right part of cluster
-                                } else if ((p > k) && relativeClusterShape[p].first == (int)(p + 2)) {
+                                } else if ((p > k) && relativeClusterShape[p].first.first == (int)(p + 2)) {
                                     // everything fine
                                 } else {
                                     specificClusterShapeFound = false;
@@ -1078,6 +1263,13 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
                             }
 
                             if (specificClusterShapeFound) {
+                                if (subid == 1 && layer == 1) {
+                                    hClusterSplit2Pos1->Fill(minCol+k+1, minRow); 
+                                    hClusterSplit2Pos1->Fill(minCol+k+2, minRow); 
+                                    hClusterSplit2Row1->Fill(minRow); 
+                                    hClusterSplit2Col1->Fill(minCol+k+1); 
+                                    hClusterSplit2Col1->Fill(minCol+k+2); 
+                                }
                                 
                                 std::pair<std::string, int> moduleClusterIdentifier = std::make_pair(fullModuleName, checkClusterSize);
                                 if (clustersSplitByTwo.find(moduleClusterIdentifier) == clustersSplitByTwo.end()) {
@@ -1085,7 +1277,16 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
                                 } else {
                                     clustersSplitByTwo[moduleClusterIdentifier]++;
                                 }
-                                break;                           
+                                
+                                // vs. BX only for layer 1!!!!
+                                if (layer ==  1 && subid == 1) {
+                                    std::pair<int, int> moduleClusterIdentifierBX = std::make_pair(bx, checkClusterSize);
+                                    if (clustersBXSplitByTwo.find(moduleClusterIdentifierBX) == clustersBXSplitByTwo.end()) {
+                                        clustersBXSplitByTwo[moduleClusterIdentifierBX] = 1;
+                                    } else {
+                                        clustersBXSplitByTwo[moduleClusterIdentifierBX]++;
+                                    }
+                                }
                                 //std::cout << "size " << checkClusterSize << " ---- found ---- k = " << k << "\n";
                                 //for (int j =0;j<relativeClusterShape.size();j++) {
                                 //    std::cout << relativeClusterShape[j].first << "," << relativeClusterShape[j].second << " ";
@@ -1108,16 +1309,16 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
                             for (unsigned int p=0;p<relativeClusterShape.size();p++) {
 
                                 // only use clusters aligned with ROC rows
-                                if (relativeClusterShape[p].second != 0) {
+                                if (relativeClusterShape[p].first.second != 0) {
                                     specificClusterShapeFound = false;
                                     break;
                                 }
 
                                 // in left part of cluster
-                                if ((p < k + 1) && relativeClusterShape[p].first == (int)p) {
+                                if ((p < k + 1) && relativeClusterShape[p].first.first == (int)p) {
                                     // everything fine
                                 // in right part of cluster
-                                } else if ((p > k) && relativeClusterShape[p].first == (int)(p + 1)) {
+                                } else if ((p > k) && relativeClusterShape[p].first.first == (int)(p + 1)) {
                                     // everything fine
                                 } else {
                                     specificClusterShapeFound = false;
@@ -1127,13 +1328,30 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
 
                             if (specificClusterShapeFound) {
 
+                                if (subid == 1 && layer == 1) {
+                                    hClusterSplit1Pos1->Fill(minCol+k+1, minRow); 
+                                    hClusterSplit1Row1->Fill(minRow); 
+                                    hClusterSplit1Col1->Fill(minCol+k+1); 
+                                }
+
+                                // vs. module ID
                                 std::pair<std::string, int> moduleClusterIdentifier = std::make_pair(fullModuleName, checkClusterSize);
                                 if (clustersSplitByOne.find(moduleClusterIdentifier) == clustersSplitByOne.end()) {
                                     clustersSplitByOne[moduleClusterIdentifier] = 1;
                                 } else {
                                     clustersSplitByOne[moduleClusterIdentifier]++;
                                 }
-                                break;                           
+                                
+                                // vs. BX only for layer 1!!!!
+                                if (layer ==  1 && subid == 1) {
+                                    std::pair<int, int> moduleClusterIdentifierBX = std::make_pair(bx, checkClusterSize);
+                                    if (clustersBXSplitByOne.find(moduleClusterIdentifierBX) == clustersBXSplitByOne.end()) {
+                                        clustersBXSplitByOne[moduleClusterIdentifierBX] = 1;
+                                    } else {
+                                        clustersBXSplitByOne[moduleClusterIdentifierBX]++;
+                                    }
+                                }
+                                break;
                             }
 
                         }
@@ -1251,6 +1469,40 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
       } // if valid
 #endif
 
+   if (subid==1 && layer==1) {
+     // count number of buffer cells used in layer 1 double columns
+     for (int iDC=0;iDC<16*26;iDC++) {
+       //std::vector< std::vector<int> > doubleColumnHitsL1;
+       int nDbCells = 0;
+       if (doubleColumnHitsL1[iDC].size() > 0) {
+         std::sort(doubleColumnHitsL1[iDC].begin(), doubleColumnHitsL1[iDC].end()); 
+         int lastRow = -2;
+         for (size_t iHit=0;iHit<doubleColumnHitsL1[iDC].size();iHit++) {
+            int hitRow = doubleColumnHitsL1[iDC][iHit].first.second;
+            if (hitRow > lastRow + 1) {
+              nDbCells++;
+              lastRow = hitRow;
+            }        
+         }
+       }
+       if (nDbCells > 35) {
+           cout << "BIG CLUSTER of size " << nDbCells << " 2x2 frames in BX " << bx << " " << fullModuleName << " DC " << iDC << "\n";
+
+       }
+       hNdbCellsLay1->Fill(nDbCells);
+       if (nDbCells > 36) {
+           for (size_t iHit=0;iHit<doubleColumnHitsL1[iDC].size();iHit++) {
+               adcLay1Big->Fill(doubleColumnHitsL1[iDC][iHit].second);
+           }
+       } else {
+           for (size_t iHit=0;iHit<doubleColumnHitsL1[iDC].size();iHit++) {
+               adcLay1Small->Fill(doubleColumnHitsL1[iDC][iHit].second);
+           }
+       }
+
+     }
+   }
+
   } // end for det-units
 
   if(PRINT) 
@@ -1342,7 +1594,7 @@ void PixDigisTest::endJob(){
       if (clustersSplitByTwo.find(moduleClusterIdentifier) != clustersSplitByTwo.end()) {
           clustersCount2 = clustersSplitByTwo[moduleClusterIdentifier];
       }
-      cout << "module " << moduleClusterIdentifier.first << " size " << moduleClusterIdentifier.second << " count " << clustersCount << " " << clustersCount1 << " " << clustersCount2 << "\n";
+     // cout << "module " << moduleClusterIdentifier.first << " size " << moduleClusterIdentifier.second << " count " << clustersCount << " " << clustersCount1 << " " << clustersCount2 << "\n";
 
       // fill tree
       strncpy(clustersModuleName, moduleClusterIdentifier.first.c_str(), 36);
@@ -1350,10 +1602,32 @@ void PixDigisTest::endJob(){
       clustersNcomplete = clustersCount;
       clustersNbroken1 = clustersCount1;
       clustersNbroken2 = clustersCount2;
-      clusterTree->Fill(); 
+      // OLD TREE: clusterTree->Fill(); 
 
   } 
 
+  // print cluster shape dictionary vs. BX (for layer 1 only!!)
+  for ( std::map< std::pair<int, int>, int>::iterator clusterDict_it = clustersBXComplete.begin(); clusterDict_it!=clustersBXComplete.end(); ++clusterDict_it) {
+      std::pair<int, int> moduleClusterIdentifier = clusterDict_it->first;
+      int clustersCount = clusterDict_it->second;
+      int clustersCount1 = 0;
+      if (clustersBXSplitByOne.find(moduleClusterIdentifier) != clustersBXSplitByOne.end()) {
+          clustersCount1 = clustersBXSplitByOne[moduleClusterIdentifier];
+      }
+      int clustersCount2 = 0;
+      if (clustersBXSplitByTwo.find(moduleClusterIdentifier) != clustersBXSplitByTwo.end()) {
+          clustersCount2 = clustersBXSplitByTwo[moduleClusterIdentifier];
+      }
+      // cout << "module " << moduleClusterIdentifier.first << " size " << moduleClusterIdentifier.second << " count " << clustersCount << " " << clustersCount1 << " " << clustersCount2 << "\n";
+
+      // fill tree
+      clustersBxBranch = moduleClusterIdentifier.first;
+      clustersSizeBranch = moduleClusterIdentifier.second;
+      clustersNcomplete = clustersCount;
+      clustersNbroken1 = clustersCount1;
+      clustersNbroken2 = clustersCount2;
+
+  } 
   for ( std::map< std::string, int>::iterator it = moduleNclusters.begin(); it!=moduleNclusters.end(); ++it) {
     double rate = it->second / (count0 * 2.5e-2 * 16 * 0.656);
     cout << "module " << it->first << ": #clusters = " << it->second << " -> " << rate << "\n";
@@ -1364,6 +1638,7 @@ void PixDigisTest::endJob(){
     double rate = it->second / (count0 * 2.5e-2 * 16 * 0.656);
     cout << "module " << it->first << ": #digis = " << it->second << " -> " << rate << "\n";
   }
+
 }
 
 //define this as a plug-in

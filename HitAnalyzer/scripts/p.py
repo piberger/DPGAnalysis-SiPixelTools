@@ -11,6 +11,7 @@ for f in files:
     #ef = f.replace("/eos/cms","root://eoscms.cern.ch")
     #ef = f.replace("/eos/cms","root://cms-xrd-global.cern.ch")
     ef = f.replace("/eos/cms","root://xrootd-cms.infn.it")
+    print ef
     lumis = Lumis (ef)
     for lum in lumis:
         print f,lum.aux().run(),lum.aux().id().luminosityBlock()
