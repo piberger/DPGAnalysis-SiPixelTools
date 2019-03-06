@@ -238,6 +238,8 @@ private:
 
 #endif
 
+  std::vector<double> instaLumis;
+
   // test!
   char digiTestModuleName[37];
   int digiTestEvent;
@@ -267,6 +269,7 @@ private:
   unsigned int clusterTree_orbit;
   unsigned int clusterTree_orbitOfLastBgo14;
   int clusterTree_tres;
+  double clusterTree_instaLumi;
 
 
   // cluster tree -> module position
@@ -283,6 +286,8 @@ private:
 
   // cluster tree -> clusters
   int clusterTree_size;
+  int clusterTree_rows;
+  int clusterTree_cols;
   int clusterTree_x[480];
   int clusterTree_y[480];
   int clusterTree_adc[480];
@@ -334,6 +339,8 @@ PixDigisTest::PixDigisTest(const edm::ParameterSet& iConfig) {
   phase1_ =  iConfig.getUntrackedParameter<bool>( "phase1",false);
   restrictToLumisection = iConfig.getUntrackedParameter<int>("lumisection", -1);
   includeZeroAdc = iConfig.getUntrackedParameter<bool>("includezeroadc", true);
+
+  instaLumis = iConfig.getUntrackedParameter< std::vector<double> > ("instaLumis");
 
   tcdsrecord_ = consumes<TCDSRecord>(edm::InputTag("tcdsRawToDigiProducer","tcdsRecord"));
   cout<<" Construct PixDigisTest "<<endl;
@@ -455,6 +462,7 @@ void PixDigisTest::beginJob() {
     clusterTree->Branch("orbit", &clusterTree_orbit, "orbit/i");
     clusterTree->Branch("orbitOfLastBgo14", &clusterTree_orbitOfLastBgo14, "orbitOfLastBgo14/i");
     clusterTree->Branch("tres", &clusterTree_tres, "tres/I");
+    clusterTree->Branch("instaLumi", &clusterTree_instaLumi, "instaLumi/d");
 
     // module information
     clusterTree->Branch("shell", &clusterTree_shell, "shell/I");
@@ -470,6 +478,8 @@ void PixDigisTest::beginJob() {
     clusterTree->Branch("pos_x", &clusterTree_pos_x, "pos_x/i");
     clusterTree->Branch("pos_y", &clusterTree_pos_y, "pos_y/i");
     clusterTree->Branch("size", &clusterTree_size,"size/I");
+    clusterTree->Branch("cols", &clusterTree_cols,"cols/I");
+    clusterTree->Branch("rows", &clusterTree_rows,"rows/I");
     
     // pixels
     clusterTree->Branch("x", clusterTree_x, "x[size]/i");
@@ -894,6 +904,7 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
       clusterTree_orbitOfLastBgo14 = 0;
       clusterTree_tres = -1;
   }
+  std::cout << "orbit="<< orbit << " clusterTree_orbitOfLastBgo14=" << clusterTree_orbitOfLastBgo14 << " clusterTree_tres=" << clusterTree_tres << std::endl;
 
   //cout << "event " << event << std::endl; 
   digiTestLS = lumiBlock;
@@ -903,6 +914,8 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
   clusterTree_event     = event;
   clusterTree_bx        = bx;
   clusterTree_orbit     = orbit;
+
+  clusterTree_instaLumi = instaLumis[lumiBlock];
 
   hbx0->Fill(float(bx));
   hlumi0->Fill(float(lumiBlock));
@@ -1660,13 +1673,23 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
                 // find "bottom left" corner (=min row, min col)
                 int minRow = 600;
                 int minCol = 600;
+                int maxRow = -1;
+                int maxCol = -1;
                 for (std::vector <std::pair< std::pair<int, int>, int> >::iterator clusterPix=(*itCluster).begin(); clusterPix != (*itCluster).end(); clusterPix++) {
                     if ((*clusterPix).first.first < minCol) minCol = (*clusterPix).first.first;
                     if ((*clusterPix).first.second < minRow) minRow = (*clusterPix).first.second;
+                    if ((*clusterPix).first.first > maxCol) maxCol = (*clusterPix).first.first;
+                    if ((*clusterPix).first.second > maxRow) maxRow = (*clusterPix).first.second;
                 }
                 
+                clusterTree_cols = 1 + maxCol - minCol;
+                clusterTree_rows = 1 + maxRow - minRow;
+
                 // align cluster with double columns
                 minCol -= minCol % 2;
+
+                clusterTree_pos_x = minCol;
+                clusterTree_pos_y = minRow;
 
                 // create relative cluster shape vector
                 std::vector < std::pair< std::pair<int, int>, int> > relativeClusterShape;
@@ -1686,13 +1709,12 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
                 //}
 
                 // fill tree
-                if (relativeClusterShape.size() < 480) {
+                if (relativeClusterShape.size() < 480 && clusterTree_layer == 1) {
                     clusterTree_size = relativeClusterShape.size();
                     for (int iRelPix=0;iRelPix<clusterTree_size;iRelPix++) {
                         clusterTree_x[iRelPix] = relativeClusterShape[iRelPix].first.first;
                         clusterTree_y[iRelPix] = relativeClusterShape[iRelPix].first.second;
                         clusterTree_adc[iRelPix] = relativeClusterShape[iRelPix].second;
-                        std::cout << ">" << clusterTree_x[iRelPix] << " " << clusterTree_y[iRelPix] << ",";
                     }
                     clusterTree->Fill();
                 }
@@ -2010,8 +2032,8 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
 	      }
 
 	      if(dcolCount>dcolThr) {
-		cout<<" full dcol (lower roc) "<<dcolCount<<" "
-		    <<col<<" "<<module<<" "<<ladder<<endl;
+		//cout<<" full dcol (lower roc) "<<dcolCount<<" "
+		//    <<col<<" "<<module<<" "<<ladder<<endl;
 		countFullDcols++;
 		hpdetMaps2->Fill(float(module),float(ladder));
 		hcols1Many->Fill(float(col));
@@ -2043,8 +2065,8 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
 	      }
 
 	      if(dcolCount>dcolThr) {
-		cout<<" full dcol (upper roc)"<<dcolCount<<" "
-		    <<col<<" "<<module<<" "<<ladder<<endl;
+		//cout<<" full dcol (upper roc)"<<dcolCount<<" "
+		//    <<col<<" "<<module<<" "<<ladder<<endl;
 		countFullDcols++;
 		hpdetMaps2->Fill(float(module),float(ladder));
 		hcols1Many->Fill(float(col));
@@ -2201,13 +2223,13 @@ void PixDigisTest::endJob(){
 	  if(emptyCols>0) { 
 	    totalEmptyCols += emptyCols;
 	    rocsWithEmptyCols++;
-	    cout<<" empty cols in module (index)="<<ind<<" roc "<<roc<<" num "<<emptyCols<<endl;
+	    //cout<<" empty cols in module (index)="<<ind<<" roc "<<roc<<" num "<<emptyCols<<endl;
 	  }
 	}
       } // roc
     } // module 
-    cout<<" empty ROCs "<<emptyROC<<" empty cols "<<totalEmptyCols
-	<<" rocs with empty cols"<<rocsWithEmptyCols<<endl;
+    //cout<<" empty ROCs "<<emptyROC<<" empty cols "<<totalEmptyCols
+	//<<" rocs with empty cols"<<rocsWithEmptyCols<<endl;
   }
 
   float norm = 1.;

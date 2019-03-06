@@ -29,6 +29,7 @@
 
 # for raw data
 <use   name="DataFormats/FEDRawData"/>
+<use   name="DataFormats/TCDS"/>
 <use   name="EventFilter/SiPixelRawToDigi"/>
 #
 # for gain calib

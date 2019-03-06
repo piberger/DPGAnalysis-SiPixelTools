@@ -51,7 +51,7 @@ process.hltfilter = hlt.hltHighLevel.clone(
     )
 
 
-process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1))
+process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(1000))
 
 print "ARGS:",sys.argv
 restrictToLumisection = -1
@@ -136,9 +136,19 @@ process.MessageLogger = cms.Service("MessageLogger",
     debugModules = cms.untracked.vstring('siPixelDigis'),
     destinations = cms.untracked.vstring('r2d'),
 #    r2d = cms.untracked.PSet( threshold = cms.untracked.string('DEBUG'))
-    r2d = cms.untracked.PSet( threshold = cms.untracked.string('INFO'))
-#    r2d = cms.untracked.PSet( threshold = cms.untracked.string('WARNING'))
+#    r2d = cms.untracked.PSet( threshold = cms.untracked.string('INFO'))
+    r2d = cms.untracked.PSet( threshold = cms.untracked.string('WARNING'))
 )
+
+#TCDS
+process.load("EventFilter.ScalersRawToDigi.ScalersRawToDigi_cfi")
+from EventFilter.Utilities.tcdsRawToDigi_cfi import *
+process.tcdsRawToDigiProducer = tcdsRawToDigi.clone()
+process.tcdsRawToDigiProducer.InputLabel = cms.InputTag("rawDataCollector")
+
+#process.load("EventFilter.Utilities.tcdsRawToDigi_cfi")
+
+print process.__dict__
 
 try:
     runNumber = sys.argv[2].split('/')[-4] + sys.argv[2].split('/')[-3]
@@ -148,7 +158,8 @@ except:
 outputFilename = 'digis_'
 
 if runNumber:
-    outputFilename = outputFilename + runNumber + '_'
+    outputFilename = outputFilename + runNumber + '_' + '-'.join(sys.argv[2].split('/')[2:-1])
+
 if (restrictToLumisection > 0):
     outputFilename = outputFilename + '%d_'%restrictToLumisection
 
@@ -161,9 +172,17 @@ print "OUTPUT:", outputFullName
 
 process.out = cms.OutputModule("PoolOutputModule",
     fileName =  cms.untracked.string(outputFullName),
-    outputCommands = cms.untracked.vstring("drop *","keep *_siPixelDigis_*_*")
+    outputCommands = cms.untracked.vstring("drop *","keep *_siPixelDigis_*_*","keep *_process.tcdsRawToDigiProducer_*_*")
 )
 
+instaLumiList = [-1.0]*20000
+if runNumber:
+    with open("/afs/cern.ch/work/p/piberger/lumis%d.txt"%int(runNumber), "r") as f:
+        lumiLines = f.readlines()
+    for l in lumiLines:
+        lineParts = [x for x in l.replace('\t',' ').split(' ') if len(x.strip()) > 0]
+        instaLumiList[int(lineParts[0])] = float(lineParts[3])
+    print "Lumi-list given:", len(lumiLines), " entries."
 
 process.a = cms.EDAnalyzer("PixDigisTest",
     Verbosity = cms.untracked.bool(False),
@@ -176,14 +195,16 @@ process.a = cms.EDAnalyzer("PixDigisTest",
     src = cms.InputTag("siPixelDigis"),
     Select1 = cms.untracked.int32(0),  # select the cut type, o no cut
     Select2 = cms.untracked.int32(0),  # select the cut value   
+    instaLumis = cms.untracked.vdouble(instaLumiList),
 )
 
 process.TFileService = cms.Service("TFileService",
     fileName = cms.string(outputFullName)
 )
 
+
 #process.p = cms.Path(process.siPixelDigis)
 #process.p = cms.Path(process.siPixelDigis*process.a)
-process.p = cms.Path(process.hltfilter*process.siPixelDigis*process.a)
+process.p = cms.Path(process.hltfilter*process.scalersRawToDigi*process.tcdsRawToDigiProducer*process.siPixelDigis*process.a)
 # disable data write to disk 
 #process.ep = cms.EndPath(process.out)
