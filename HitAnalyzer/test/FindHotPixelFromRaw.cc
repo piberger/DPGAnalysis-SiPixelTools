@@ -46,7 +46,7 @@ namespace {
   const bool printData    = false;
   const bool printHeaders = false;
   int count0=0, count1=0, count2=0, count3=0;
-  const int FEDs=94;
+  const int FEDs=139;
   const int fedId0=1200;
   const bool findHot=true;
 }
@@ -264,7 +264,7 @@ int MyDecode::data(int word, int &c, int &r, int &d, int &p, int &a, bool printF
     }
 
   } else if(roc==25) {  // ROC? 
-    unsigned int chan = ((word&chnlmsk)>>26);
+    //unsigned int chan = ((word&chnlmsk)>>26);
     //cout<<"Wrong roc 25 "<<" in chan "<<"/"<<chan<<endl;
     //status=error(word);
     status=-4;
@@ -423,7 +423,7 @@ private:
 };
 
 int HotPixels::code(int channel, int roc, int dcol, int pix) {
-  // pix 0 - 182, dcol 0 - 26 , roc 0 -15, chan 1-36
+  // pix 0 - 182, dcol 0 - 26 , roc 0-7, chan 1- 48
   int index = pix + 1000 * dcol + 100000 * roc + 10000000 * channel;
   return index;
 }
@@ -484,7 +484,7 @@ void HotPixels::print(int events, int fed_id, double fraction) {
   if(cut<2) cut=2;
 
   if(fed_id==1200) {
-    cout<<" Threshold of "<<cut<<" "<<cut1<<" "<<cut2<<" "<<cut3<<endl;
+    cout<<" Threshold for "<<fraction<<" is "<<cut<<" 1% "<<cut1<<" 0.1% "<<cut2<<" 0.01% "<<cut3<<endl;
     cout<<"fed chan     module                   tbm roc dcol  pix  colR ";
     cout<<"rowR count  num roc-local"<<endl;
     //cout<<" fed chan name tbm rocp dcol pix colR rowR count num roc "<<endl;
@@ -506,6 +506,8 @@ void HotPixels::print(int events, int fed_id, double fraction) {
 
     decode(index, channel, roc, dcol, pix);
 
+    //if(fed_id==1253 && channel==44) cout<<roc<<" "<<dcol<<" "<<pix<<" "<<data[i]<<endl;
+
     if(data[i]>cut) {
       num++;
       count0++;
@@ -514,8 +516,8 @@ void HotPixels::print(int events, int fed_id, double fraction) {
       string modName = " ",tbm=" ";
       modName = MyConvert::moduleNameFromFedChan(fed_id,channel,roc,tbm);
 
-      int realRocNum = roc;
 
+      int realRocNum = roc;
       int colROC = -1;
       int rowROC = -1;
       int layer =-1;
@@ -526,8 +528,8 @@ void HotPixels::print(int events, int fed_id, double fraction) {
       else if( modName.find("_LYR4_") != string::npos ) layer=4;  
 
       if( layer==1 ) { // layer  1
-	cout<<" this is layer 1 "<<modName<<endl;
-	// this is still wrong as it does not take the bit change into account 
+	//cout<<" this is layer 1 "<<modName<<endl;
+	// this is still wrong as it does not take the bit change into account WHAT DOES THIS MEAN?
 
 	int tmp = (dcol<<16) + (pix<<8);
 	colROC = (tmp&colmsk)>>15;
@@ -773,10 +775,12 @@ private:
   edm::EDGetTokenT<FEDRawDataCollection> rawData;
 
   int countEvents, countAllEvents;
+  int countTest;
   float sumPixels, sumFedPixels[FEDs];
   HotPixels hotPixels[FEDs];
   double fraction_;
   int PixelsCount[48][8];
+  int MAXFED; // last fed
 
   TH1D *hsize0, *hsize1, *hsize2, *hsize3;
   TH2F *hchannelRoc, *hchannelRocs, *hchannelPixels, *hchannelPixPerRoc;
@@ -804,7 +808,7 @@ void FindHotPixelFromRaw::endJob() {
     }
   }
 
-  cout<<" Number of noisy pixels: "<<count0<<" 1% "<<count1<<" 0.1% "<<count2<<" 0.01% "<<count3<<endl;
+  cout<<" Number of noisy pixels: for selected cut "<<count0<<" for 1% "<<count1<<" for 0.1% "<<count2<<" for 0.01% "<<count3<<endl;
 
   // print noisy ROCs
   const int cutROC=40;
@@ -817,11 +821,13 @@ void FindHotPixelFromRaw::endJob() {
     hotPixels[i].printROCs(i+fedId0,cutROC);
   }
 
+  cout<<"test counter "<<countTest<<endl;
 }
 
 void FindHotPixelFromRaw::beginJob() {
   countEvents=0;
   countAllEvents=0;
+  countTest=0;
   sumPixels=0.;
   for(int i=0;i<FEDs;++i) sumFedPixels[i]=0;
   for(int i=0;i<48;++i) 
@@ -830,7 +836,9 @@ void FindHotPixelFromRaw::beginJob() {
 
   // Define the fraction for noisy pixels
   fraction_ = theConfig.getUntrackedParameter<double>("Fraction",0.001); 
-  cout<<" The noise fraction is "<<fraction_<<endl;
+  MAXFED = theConfig.getUntrackedParameter<int>("MAXFED",1293);
+  //MAXFED=1293;
+  cout<<" The noise fraction is "<<fraction_<<" FED range until "<<MAXFED<<endl;
 
   edm::Service<TFileService> fs;
   hsize0 = fs->make<TH1D>( "hsize0", "Noisy pixels", 10000, 0.0, 0.1);
@@ -1002,7 +1010,7 @@ void FindHotPixelFromRaw::analyze(const  edm::Event& ev, const edm::EventSetup& 
   ev.getByToken(rawData , buffers);  // the new bytoken 
 
   //std::pair<int,int> fedIds(FEDNumbering::MINSiPixelFEDID, FEDNumbering::MAXSiPixelFEDID);
-  std::pair<int,int> fedIds(1200, 1293);
+  std::pair<int,int> fedIds(1200, MAXFED);
   
   //PixelDataFormatter formatter(0); // to get digis
   //bool dummyErrorBool;
@@ -1026,6 +1034,8 @@ void FindHotPixelFromRaw::analyze(const  edm::Event& ev, const edm::EventSetup& 
 
     LogDebug("FindHotPixelFromRaw")<< " GET DATA FOR FED: " <<  fedId ;
     if(printHeaders) cout<<" For FED = "<<fedId<<endl;
+
+    if( (fedId-fedId0)>FEDs ) {cout<<" skip fed, id too big "<<fedId<<endl; continue;}
 
      PixelDataFormatter::Errors errors;
     
@@ -1056,20 +1066,24 @@ void FindHotPixelFromRaw::analyze(const  edm::Event& ev, const edm::EventSetup& 
 
       Word32 w1 =  *word       & WORD32_mask;
       status = MyDecode::data(w1, channel, roc, dcol, pix, adc, printData);
-      //if(fedId==1207 && channel==22) cout<<roc<<" "<<dcol<<" "<<pix<<endl;
+      //if(fedId==1253 && channel==44) cout<<status<<" "<<roc<<" "<<dcol<<" "<<pix<<endl;
       if(status>0) {
+	//if(fedId==1253 && channel==44) cout<<roc<<" "<<dcol<<" "<<pix<<endl;
 	countPixels++;
 	countPixelsInFed++;
+	if(fedId==1253 && channel==44 && roc==3) countTest++;
         if(findHot) hotPixels[fedId-fedId0].update(channel,roc,dcol,pix);
 	else        analyzeHits(fedId,channel,layer,roc,dcol,pix,adc);
       } else if(status<0) countErrorsInFed++;
 
       Word32 w2 =  (*word >> 32) & WORD32_mask;
       status = MyDecode::data(w2, channel, roc, dcol, pix, adc,  printData);
-      //if(fedId==1207 && channel==22) cout<<roc<<" "<<dcol<<" "<<pix<<endl;
+      //if(fedId==1253 && channel==44) cout<<status<<" "<<roc<<" "<<dcol<<" "<<pix<<endl;
       if(status>0) {
+	//if(fedId==1253 && channel==44) cout<<roc<<" "<<dcol<<" "<<pix<<endl;
 	countPixels++;
 	countPixelsInFed++;
+	if(fedId==1253 && channel==44 && roc==3) countTest++;
         if(findHot) hotPixels[fedId-fedId0].update(channel,roc,dcol,pix);
 	else        analyzeHits(fedId,channel,layer,roc,dcol,pix,adc);
       } else if(status<0) countErrorsInFed++;

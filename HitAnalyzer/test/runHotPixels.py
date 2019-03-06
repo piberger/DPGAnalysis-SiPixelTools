@@ -46,7 +46,7 @@ process.MessageLogger = cms.Service("MessageLogger",
 
 process.maxEvents = cms.untracked.PSet(
     input = cms.untracked.int32(-1)
-#    input = cms.untracked.int32(10)
+#    input = cms.untracked.int32(1000)
 )
 
 process.TFileService = cms.Service("TFileService",
@@ -55,34 +55,24 @@ process.TFileService = cms.Service("TFileService",
 
 process.source = cms.Source("PoolSource",
     fileNames = cms.untracked.vstring( 
-
-"/store/express/Run2017C/ExpressCosmics/FEVT/Express-v1/000/300/211/00000/04BBD43B-0876-E711-8C3E-02163E0119F7.root",
-"/store/express/Run2017C/ExpressCosmics/FEVT/Express-v1/000/300/211/00000/04CC776E-0376-E711-850D-02163E0141D5.root",
-"/store/express/Run2017C/ExpressCosmics/FEVT/Express-v1/000/300/211/00000/0624BE8A-0A76-E711-9D53-02163E011825.root",
-"/store/express/Run2017C/ExpressCosmics/FEVT/Express-v1/000/300/211/00000/086C8B4F-0676-E711-8081-02163E01A20D.root",
-"/store/express/Run2017C/ExpressCosmics/FEVT/Express-v1/000/300/211/00000/1C743D35-1676-E711-B5A3-02163E013412.root",
-"/store/express/Run2017C/ExpressCosmics/FEVT/Express-v1/000/300/211/00000/1EF32E71-0376-E711-B413-02163E011B72.root",
-"/store/express/Run2017C/ExpressCosmics/FEVT/Express-v1/000/300/211/00000/206382F8-0676-E711-B222-02163E011D78.root",
-"/store/express/Run2017C/ExpressCosmics/FEVT/Express-v1/000/300/211/00000/22A3A271-0376-E711-9918-02163E013734.root",
-"/store/express/Run2017C/ExpressCosmics/FEVT/Express-v1/000/300/211/00000/24C3FE4A-0676-E711-8961-02163E01A5FB.root",
-"/store/express/Run2017C/ExpressCosmics/FEVT/Express-v1/000/300/211/00000/288C0969-0676-E711-A54D-02163E01384A.root",
-
-# "/store/express/Run2017A/ExpressPhysics/FEVT/Express-v2/000/296/702/00000/FED4EA05-D64F-E711-82F9-02163E012A6B.root",
-
-# "/store/express/Run2017A/ExpressPhysics/FEVT/Express-v1/000/295/439/00000/426B4782-FC43-E711-9328-02163E011A76.root",
-# "/store/express/Run2017A/ExpressPhysics/FEVT/Express-v1/000/295/439/00000/F853E939-FF43-E711-A59D-02163E013479.root",
-
-# "/store/express/Run2017A/ExpressPhysics/FEVT/Express-v1/000/295/209/00000/005E61C9-D341-E711-BEAE-02163E019C9F.root",
-
-# cosmics  2017
-#"/store/express/Commissioning2017/ExpressCosmics/FEVT/Express-v1/000/294/307/00000/00ABDA7D-733B-E711-A08B-02163E01440D.root",
-
-#"/store/express/Commissioning2017/ExpressCosmics/FEVT/Express-v1/000/291/877/00000/0C01F638-9923-E711-A733-02163E014409.root",
-#"/store/express/Commissioning2017/ExpressCosmics/FEVT/Express-v1/000/292/080/00000/0014512B-9325-E711-8981-02163E01A28A.root",
-
-#"root://eoscms//eos/cms/tier0/store/data/Commissioning2016/MinimumBias/RAW/v1/000/267/594/00000/0AD270D1-B8F0-E511-9A98-02163E01347C.root",
-#  "rfio:/castor/cern.ch/cms/store/data/Run2012D/MinimumBias/RAW/v1/000/205/217/2EF61B7D-F216-E211-98C3-001D09F28D54.root",
-
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/EA0EE7D9-943A-E811-BE36-02163E013DCD.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/523385A7-973A-E811-BCB9-02163E00B53D.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/1E14D2B7-973A-E811-ABD3-FA163EE655A1.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/12CADCB2-973A-E811-B519-FA163E2BCBE1.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/D6FEB8CD-983A-E811-B321-FA163E2BCBE1.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/98667B60-A13A-E811-B138-02163E01762E.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/6419ECE2-933A-E811-9FC4-FA163EA6A0C9.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/FE3DA187-943A-E811-A62B-FA163ED596E6.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/F03C830A-993A-E811-8DC5-FA163EF5C888.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/F80EBCFF-9A3A-E811-8149-FA163E355523.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/76B72AC9-9B3A-E811-9EA5-FA163E94A9FA.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/34C7AA20-9C3A-E811-AD23-02163E0160B2.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/6EF67AAA-9C3A-E811-BE8F-FA163E287A7D.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/BA46975E-9E3A-E811-BCA0-FA163E355523.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/92774696-9F3A-E811-A6DB-FA163EB78729.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/70868229-A23A-E811-B017-FA163EB5448B.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/1EF55363-A23A-E811-9D47-FA163E456877.root",
+"/store/express/Commissioning2018/ExpressCosmics/FEVT/Express-v1/000/313/759/00000/4C1B9186-A23A-E811-AEE7-FA163E427FAE.root",
     )
 )
 
@@ -101,11 +91,13 @@ process.d = cms.EDAnalyzer("FindHotPixelFromRaw",
 #    InputLabel = cms.untracked.string('siPixelRawData'),
     CheckPixelOrder = cms.untracked.bool(False),
 #   Fraction to define  noisy pixels 
-    Fraction = cms.untracked.double(0.02)
+    Fraction = cms.untracked.double(0.01),
+    #MAXFED = cms.untracked.int32(1293)  # bpix only 
+    MAXFED = cms.untracked.int32(1338)  # all  
 )
 
-process.p = cms.Path(process.hltfilter*process.d)
-#process.p = cms.Path(process.dumper)
+#process.p = cms.Path(process.hltfilter*process.d)
+process.p = cms.Path(process.d)
 
 # process.ep = cms.EndPath(process.out)
 
