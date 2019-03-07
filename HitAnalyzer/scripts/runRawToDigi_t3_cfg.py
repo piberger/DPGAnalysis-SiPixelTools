@@ -53,12 +53,6 @@ process.hltfilter = hlt.hltHighLevel.clone(
 
 process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(1000))
 
-print "ARGS:",sys.argv
-restrictToLumisection = -1
-if len(sys.argv) > 3:
-    restrictToLumisection = int(sys.argv[3])
-    print "-> restrict to lumisection ", restrictToLumisection
-
 if 'Run2017' in sys.argv[2]:
     process.GlobalTag.globaltag = '92X_dataRun2_Express_v2' # 
 elif 'Run2018' in sys.argv[2]:
@@ -153,7 +147,7 @@ process.tcdsRawToDigiProducer.InputLabel = cms.InputTag("rawDataCollector")
 
 #process.load("EventFilter.Utilities.tcdsRawToDigi_cfi")
 
-print process.__dict__
+#print process.__dict__
 
 try:
     runNumber = sys.argv[2].split('/')[-4] + sys.argv[2].split('/')[-3]
@@ -169,7 +163,7 @@ outputFilename = outputFilename + sys.argv[2].split('/')[-1].strip()
 
 if outputFilename.endswith('.root'):
     outputFilename = outputFilename[0:-5]
-outputFullName = 'file:/afs/cern.ch/work/p/piberger/' + outputFilename + '.root'
+outputFullName = 'file:' + sys.argv[3] + '/' + outputFilename + '.root'
 print "OUTPUT:", outputFullName
 
 process.out = cms.OutputModule("PoolOutputModule",
@@ -179,7 +173,7 @@ process.out = cms.OutputModule("PoolOutputModule",
 
 instaLumiList = [-1.0]*20000
 if runNumber:
-    with open("/afs/cern.ch/work/p/piberger/lumis%d.txt"%int(runNumber), "r") as f:
+    with open("/t3home/berger_p2/lumi/lumis%d.txt"%int(runNumber), "r") as f:
         lumiLines = f.readlines()
     for l in lumiLines:
         lineParts = [x for x in l.replace('\t',' ').split(' ') if len(x.strip()) > 0]
@@ -190,7 +184,7 @@ process.a = cms.EDAnalyzer("PixDigisTest",
     Verbosity = cms.untracked.bool(False),
     phase1 = cms.untracked.bool(True),
     includezeroadc = cms.untracked.bool(False),
-    lumisection = cms.untracked.int32(restrictToLumisection),
+    lumisection = cms.untracked.int32(-1),
 # sim in V7
 #    src = cms.InputTag("mix"),
 # old default
