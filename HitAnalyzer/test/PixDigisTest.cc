@@ -264,6 +264,7 @@ private:
   
   // cluster tree -> event info
   unsigned int clusterTree_bx;
+  unsigned int clusterTree_run;
   unsigned int clusterTree_event;
   unsigned int clusterTree_lumiblock;
   unsigned int clusterTree_orbit;
@@ -283,6 +284,11 @@ private:
   unsigned int clusterTree_zindex;
   unsigned int clusterTree_pos_x;
   unsigned int clusterTree_pos_y;
+  double clusterTree_detX;
+  double clusterTree_detY;
+  double clusterTree_detZ;
+  double clusterTree_detR;
+  double clusterTree_detPhi;
 
   // cluster tree -> clusters
   int clusterTree_size;
@@ -291,6 +297,12 @@ private:
   int clusterTree_x[480];
   int clusterTree_y[480];
   int clusterTree_adc[480];
+  double clusterTree_global_x;
+  double clusterTree_global_y;
+  double clusterTree_global_z;
+  double clusterTree_global_eta;
+  double clusterTree_global_phi;
+  double clusterTree_global_r;
 
   // count clusters for each module < <module, size>, count>
   std::map< std::pair<std::string, int>, int> clustersComplete;
@@ -457,6 +469,7 @@ void PixDigisTest::beginJob() {
     
     // event information
     clusterTree->Branch("bx", &clusterTree_bx, "bx/i");
+    clusterTree->Branch("run", &clusterTree_run, "run/i");
     clusterTree->Branch("event", &clusterTree_event, "bx/i");
     clusterTree->Branch("lumiblock", &clusterTree_lumiblock, "lumiblock/i");
     clusterTree->Branch("orbit", &clusterTree_orbit, "orbit/i");
@@ -473,6 +486,11 @@ void PixDigisTest::beginJob() {
     clusterTree->Branch("layerC", &clusterTree_layerC, "layerC/i");
     clusterTree->Branch("ladderC", &clusterTree_ladderC, "ladderC/i");
     clusterTree->Branch("zindex", &clusterTree_zindex, "zindex/i");
+    clusterTree->Branch("detX", &clusterTree_detX, "detX/d");
+    clusterTree->Branch("detY", &clusterTree_detY, "detY/d");
+    clusterTree->Branch("detZ", &clusterTree_detZ, "detZ/d");
+    clusterTree->Branch("detR", &clusterTree_detR, "detR/d");
+    clusterTree->Branch("detPhi", &clusterTree_detPhi, "detPhi/d");
     
     // clusters
     clusterTree->Branch("pos_x", &clusterTree_pos_x, "pos_x/i");
@@ -480,7 +498,14 @@ void PixDigisTest::beginJob() {
     clusterTree->Branch("size", &clusterTree_size,"size/I");
     clusterTree->Branch("cols", &clusterTree_cols,"cols/I");
     clusterTree->Branch("rows", &clusterTree_rows,"rows/I");
-    
+    clusterTree->Branch("global_x", &clusterTree_global_x,"global_x/d");
+    clusterTree->Branch("global_y", &clusterTree_global_y,"global_y/d");
+    clusterTree->Branch("global_z", &clusterTree_global_z,"global_z/d");
+    clusterTree->Branch("global_eta", &clusterTree_global_eta,"global_eta/d");
+    clusterTree->Branch("global_phi", &clusterTree_global_phi,"global_phi/d");
+    clusterTree->Branch("global_r", &clusterTree_global_r,"global_r/d");
+
+
     // pixels
     clusterTree->Branch("x", clusterTree_x, "x[size]/i");
     clusterTree->Branch("y", clusterTree_y, "y[size]/i");
@@ -890,7 +915,7 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
   using namespace edm;
   if(PRINT) cout<<" Analyze PixDigisTest for phase "<<phase1_<<endl;
 
-  //  int run       = iEvent.id().run();
+  int run       = iEvent.id().run();
   int event     = iEvent.id().event();
   int lumiBlock = iEvent.luminosityBlock();
   int bx        = iEvent.bunchCrossing();
@@ -913,6 +938,7 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
   clusterTree_lumiblock = lumiBlock;
   clusterTree_event     = event;
   clusterTree_bx        = bx;
+  clusterTree_run       = run;
   clusterTree_orbit     = orbit;
 
   clusterTree_instaLumi = instaLumis[lumiBlock];
@@ -1034,6 +1060,13 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
     double detZ = theGeomDet->surface().position().z();
     double detR = theGeomDet->surface().position().perp();
     double detPhi = theGeomDet->surface().position().phi();
+
+    clusterTree_detX   = detX;
+    clusterTree_detY   = detY;
+    clusterTree_detZ   = detZ;
+    clusterTree_detR   = detR;
+    clusterTree_detPhi = detPhi;
+
     //const BoundPlane plane = theGeomDet->surface(); // does not work
     
 //     int cols = theGeomDet->specificTopology().ncolumns();
@@ -1606,7 +1639,8 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
        
       } // end for digis in detunit
 
-      if (restrictToLumisection < 1 || restrictToLumisection == lumiBlock) {
+      // only do it for layer 1
+      if (layer==1 && (restrictToLumisection < 1 || restrictToLumisection == lumiBlock)) {
             //------------------------------------------------------------------------------------------------------------------------------
             // clustering
             //------------------------------------------------------------------------------------------------------------------------------
@@ -1685,6 +1719,24 @@ void PixDigisTest::analyze(const edm::Event& iEvent,
                 clusterTree_cols = 1 + maxCol - minCol;
                 clusterTree_rows = 1 + maxRow - minRow;
 
+                // center of bounding rectangle
+                LocalPoint lp(0.5*(maxCol+minCol), 0.5*(maxRow+minRow));
+
+                // global coordinates
+                // meh GlobalPoint gp = theGeomDet->surface().toGlobal(Local3DPoint(lp));
+                //lp = theGeomDet->surface().localPosition(MeasurementPoint(0.5*(maxCol+minCol), 0.5*(maxRow+minRow)));
+                lp = topology.localPosition(MeasurementPoint(0.5*(maxRow+minRow), 0.5*(maxCol+minCol))); 
+                GlobalPoint gp = theGeomDet->surface().toGlobal(lp);
+                
+                //cout<<" global rechit "<<gp.x()<<" "<<gp.y()<<" "<<gp.z()<<" " << gp.eta() << " " << gp.phi() << " " << gp.perp() << endl;
+
+                clusterTree_global_x = gp.x();
+                clusterTree_global_y = gp.y();
+                clusterTree_global_z = gp.z();
+                clusterTree_global_eta = gp.eta();
+                clusterTree_global_phi = gp.phi();
+                clusterTree_global_r = gp.perp();
+                
                 // align cluster with double columns
                 minCol -= minCol % 2;
 
